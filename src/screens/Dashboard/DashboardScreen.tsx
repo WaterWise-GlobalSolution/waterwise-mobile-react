@@ -8,14 +8,31 @@ import {
   TouchableOpacity,
   RefreshControl,
   Dimensions,
+  Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../contexts/AuthContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as Location from 'expo-location';
 
 interface DashboardScreenProps {
   navigation: any;
+}
+
+interface WeatherData {
+  temperature: number;
+  description: string;
+  humidity: number;
+  windSpeed: number;
+  pressure: number;
+  feelsLike: number;
+  rainProbability: number;
+  location: string;
+  icon: string;
+  isLoading: boolean;
+  error: string | null;
 }
 
 const { width } = Dimensions.get('window');
@@ -31,9 +48,164 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
     alerts: 0,
   });
 
+  const [weatherData, setWeatherData] = useState<WeatherData>({
+    temperature: 0,
+    description: '',
+    humidity: 0,
+    windSpeed: 0,
+    pressure: 0,
+    feelsLike: 0,
+    rainProbability: 0,
+    location: '',
+    icon: 'partly-sunny',
+    isLoading: true,
+    error: null,
+  });
+
+  const [locationPermission, setLocationPermission] = useState<boolean>(false);
+
   useEffect(() => {
     loadDashboardData();
+    requestLocationPermission();
   }, []);
+
+  const requestLocationPermission = async () => {
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status === 'granted') {
+        setLocationPermission(true);
+        await getCurrentWeather();
+      } else {
+        setWeatherData(prev => ({
+          ...prev,
+          isLoading: false,
+          error: 'Permissão de localização negada',
+        }));
+        // Usar localização da propriedade como fallback
+        await getWeatherByCoordinates(
+          propriedade?.latitude || -23.804501,
+          propriedade?.longitude || -46.614275
+        );
+      }
+    } catch (error) {
+      console.error('Error requesting location permission:', error);
+      setWeatherData(prev => ({
+        ...prev,
+        isLoading: false,
+        error: 'Erro ao solicitar permissão',
+      }));
+    }
+  };
+
+  const getCurrentWeather = async () => {
+    try {
+      setWeatherData(prev => ({ ...prev, isLoading: true, error: null }));
+
+      // Obter localização atual
+      const location = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
+
+      const { latitude, longitude } = location.coords;
+      await getWeatherByCoordinates(latitude, longitude);
+    } catch (error) {
+      console.error('Error getting current location:', error);
+      // Fallback para localização da propriedade
+      if (propriedade?.latitude && propriedade?.longitude) {
+        await getWeatherByCoordinates(propriedade.latitude, propriedade.longitude);
+      } else {
+        setWeatherData(prev => ({
+          ...prev,
+          isLoading: false,
+          error: 'Não foi possível obter localização',
+        }));
+      }
+    }
+  };
+
+  const getWeatherByCoordinates = async (latitude: number, longitude: number) => {
+    try {
+      // OpenWeatherMap API - WaterWise Key
+      const API_KEY = '15fdde76e737dbe2d971e8afc682ae3c';
+      const url = `https://api.openweathermap.org/data/2.5/weather?lat=${latitude}&lon=${longitude}&appid=${API_KEY}&units=metric&lang=pt_br`;
+
+      const response = await fetch(url);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+
+      // Mapear ícones do OpenWeatherMap para ícones do Ionicons
+      const iconMap: { [key: string]: string } = {
+        '01d': 'sunny',           // céu limpo (dia)
+        '01n': 'moon',            // céu limpo (noite)
+        '02d': 'partly-sunny',    // poucas nuvens (dia)
+        '02n': 'cloudy-night',    // poucas nuvens (noite)
+        '03d': 'cloudy',          // nuvens dispersas
+        '03n': 'cloudy',          // nuvens dispersas
+        '04d': 'cloudy',          // nublado
+        '04n': 'cloudy',          // nublado
+        '09d': 'rainy',           // chuva
+        '09n': 'rainy',           // chuva
+        '10d': 'rainy',           // chuva (dia)
+        '10n': 'rainy',           // chuva (noite)
+        '11d': 'thunderstorm',    // tempestade
+        '11n': 'thunderstorm',    // tempestade
+        '13d': 'snow',            // neve
+        '13n': 'snow',            // neve
+        '50d': 'cloudy',          // névoa
+        '50n': 'cloudy',          // névoa
+      };
+
+      // Obter nome da cidade
+      const geocodeUrl = `https://api.openweathermap.org/geo/1.0/reverse?lat=${latitude}&lon=${longitude}&limit=1&appid=${API_KEY}`;
+      const geocodeResponse = await fetch(geocodeUrl);
+      let locationName = 'Localização atual';
+      
+      if (geocodeResponse.ok) {
+        const geocodeData = await geocodeResponse.json();
+        if (geocodeData.length > 0) {
+          locationName = `${geocodeData[0].name}, ${geocodeData[0].state || geocodeData[0].country}`;
+        }
+      }
+
+      setWeatherData({
+        temperature: Math.round(data.main.temp),
+        description: data.weather[0].description,
+        humidity: data.main.humidity,
+        windSpeed: Math.round(data.wind.speed * 3.6), // converter m/s para km/h
+        pressure: data.main.pressure,
+        feelsLike: Math.round(data.main.feels_like),
+        rainProbability: Math.round((data.clouds.all / 100) * 100), // usar cobertura de nuvens como proxy
+        location: locationName,
+        icon: iconMap[data.weather[0].icon] || 'partly-sunny',
+        isLoading: false,
+        error: null,
+      });
+
+    } catch (error) {
+      console.error('Error fetching weather data:', error);
+      
+      // Dados mock como fallback
+      const mockWeatherData = {
+        temperature: 24,
+        description: 'Parcialmente nublado',
+        humidity: 68,
+        windSpeed: 8,
+        pressure: 1013,
+        feelsLike: 26,
+        rainProbability: 15,
+        location: propriedade?.latitude && propriedade.latitude < -23 ? 'São Paulo, SP' : 'Região Metropolitana, SP',
+        icon: 'partly-sunny',
+        isLoading: false,
+        error: 'Usando dados simulados',
+      };
+
+      setWeatherData(mockWeatherData);
+    }
+  };
 
   const loadDashboardData = async () => {
     try {
@@ -56,7 +228,13 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await loadDashboardData();
+    await Promise.all([
+      loadDashboardData(),
+      locationPermission ? getCurrentWeather() : getWeatherByCoordinates(
+        propriedade?.latitude || -23.804501,
+        propriedade?.longitude || -46.614275
+      )
+    ]);
     setRefreshing(false);
   };
 
@@ -67,6 +245,24 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
 
   const handleSettings = () => {
     navigation.navigate('Settings');
+  };
+
+  const handleWeatherRefresh = async () => {
+    if (locationPermission) {
+      await getCurrentWeather();
+    } else {
+      Alert.alert(
+        'Permissão de Localização',
+        'Para obter dados meteorológicos atualizados, permita o acesso à localização.',
+        [
+          { text: 'Cancelar', style: 'cancel' },
+          { 
+            text: 'Configurações', 
+            onPress: () => requestLocationPermission()
+          }
+        ]
+      );
+    }
   };
 
   const getGreeting = () => {
@@ -86,6 +282,14 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
       5: { text: 'Crítico', color: '#F44336' },
     };
     return levels[nivel as keyof typeof levels] || levels[1];
+  };
+
+  const getTemperatureColor = (temp: number) => {
+    if (temp <= 10) return '#2196F3'; // Azul - muito frio
+    if (temp <= 20) return '#00BCD4'; // Ciano - frio
+    if (temp <= 25) return '#4CAF50'; // Verde - agradável
+    if (temp <= 30) return '#FF9800'; // Laranja - quente
+    return '#F44336'; // Vermelho - muito quente
   };
 
   const StatCard = ({ icon, title, value, unit, color }: any) => (
@@ -230,6 +434,115 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
             </View>
           </View>
 
+          {/* Weather Info - ATUALIZADO */}
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Condições Climáticas</Text>
+              <TouchableOpacity onPress={handleWeatherRefresh} style={styles.refreshButton}>
+                <Ionicons 
+                  name={weatherData.isLoading ? "reload-outline" : "refresh-outline"} 
+                  size={20} 
+                  color="#00FFCC" 
+                />
+              </TouchableOpacity>
+            </View>
+            <View style={styles.weatherCard}>
+              <LinearGradient
+                colors={['#2D2D2D', '#3D3D3D']}
+                style={styles.weatherCardGradient}
+              >
+                {weatherData.isLoading ? (
+                  <View style={styles.weatherLoading}>
+                    <ActivityIndicator size="large" color="#00FFCC" />
+                    <Text style={styles.weatherLoadingText}>Obtendo dados meteorológicos...</Text>
+                  </View>
+                ) : weatherData.error ? (
+                  <View style={styles.weatherError}>
+                    <Ionicons name="cloud-offline-outline" size={48} color="#FF5722" />
+                    <Text style={styles.weatherErrorText}>{weatherData.error}</Text>
+                    <TouchableOpacity onPress={handleWeatherRefresh} style={styles.retryButton}>
+                      <Text style={styles.retryButtonText}>Tentar novamente</Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  <>
+                    <View style={styles.weatherMain}>
+                      <Ionicons 
+                        name={weatherData.icon as any} 
+                        size={48} 
+                        color={getTemperatureColor(weatherData.temperature)} 
+                      />
+                      <View style={styles.weatherInfo}>
+                        <Text style={[styles.temperature, { color: getTemperatureColor(weatherData.temperature) }]}>
+                          {weatherData.temperature}°C
+                        </Text>
+                        <Text style={styles.weatherDescription}>
+                          {weatherData.description.charAt(0).toUpperCase() + weatherData.description.slice(1)}
+                        </Text>
+                        <Text style={styles.weatherLocation}>
+                          📍 {weatherData.location}
+                        </Text>
+                        <Text style={styles.feelsLike}>
+                          Sensação térmica: {weatherData.feelsLike}°C
+                        </Text>
+                      </View>
+                    </View>
+                    <View style={styles.weatherDetails}>
+                      <View style={styles.weatherDetailItem}>
+                        <Ionicons name="rainy" size={16} color="#00FFCC" />
+                        <Text style={styles.weatherDetailText}>
+                          Chuva: {weatherData.rainProbability}%
+                        </Text>
+                      </View>
+                      <View style={styles.weatherDetailItem}>
+                        <Ionicons name="water" size={16} color="#2196F3" />
+                        <Text style={styles.weatherDetailText}>
+                          Umidade: {weatherData.humidity}%
+                        </Text>
+                      </View>
+                      <View style={styles.weatherDetailItem}>
+                        <Ionicons name="speedometer" size={16} color="#FF9800" />
+                        <Text style={styles.weatherDetailText}>
+                          Vento: {weatherData.windSpeed} km/h
+                        </Text>
+                      </View>
+                    </View>
+                    <View style={styles.weatherDetails}>
+                      <View style={styles.weatherDetailItem}>
+                        <Ionicons name="thermometer" size={16} color="#4CAF50" />
+                        <Text style={styles.weatherDetailText}>
+                          Pressão: {weatherData.pressure} hPa
+                        </Text>
+                      </View>
+                      <View style={styles.weatherDetailItem}>
+                        <Ionicons name="time" size={16} color="#CCCCCC" />
+                        <Text style={styles.weatherDetailText}>
+                          Atualizado: {new Date().toLocaleTimeString('pt-BR', { 
+                            hour: '2-digit', 
+                            minute: '2-digit' 
+                          })}
+                        </Text>
+                      </View>
+                      <View style={styles.weatherDetailItem}>
+                        {locationPermission ? (
+                          <>
+                            <Ionicons name="location" size={16} color="#4CAF50" />
+                            <Text style={styles.weatherDetailText}>GPS ativo</Text>
+                          </>
+                        ) : (
+                          <>
+                            <Ionicons name="location-outline" size={16} color="#FF9800" />
+                            <Text style={styles.weatherDetailText}>Localização fixa</Text>
+                          </>
+                        )}
+                      </View>
+                    </View>
+                  </>
+                )}
+              </LinearGradient>
+            </View>
+          </View>
+
           {/* Quick Actions */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Ações Rápidas</Text>
@@ -301,42 +614,6 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
                     </View>
                   </View>
                 )}
-              </LinearGradient>
-            </View>
-          </View>
-
-          {/* Weather Info */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Condições Climáticas</Text>
-            <View style={styles.weatherCard}>
-              <LinearGradient
-                colors={['#2D2D2D', '#3D3D3D']}
-                style={styles.weatherCardGradient}
-              >
-                <View style={styles.weatherMain}>
-                  <Ionicons name="partly-sunny" size={48} color="#FFB74D" />
-                  <View style={styles.weatherInfo}>
-                    <Text style={styles.temperature}>24°C</Text>
-                    <Text style={styles.weatherDescription}>Parcialmente nublado</Text>
-                    <Text style={styles.weatherLocation}>
-                      Região de {propriedade?.latitude && propriedade.latitude < -20 ? 'São Paulo' : 'Brasília'}
-                    </Text>
-                  </View>
-                </View>
-                <View style={styles.weatherDetails}>
-                  <View style={styles.weatherDetailItem}>
-                    <Ionicons name="rainy" size={16} color="#00FFCC" />
-                    <Text style={styles.weatherDetailText}>Chuva: 15%</Text>
-                  </View>
-                  <View style={styles.weatherDetailItem}>
-                    <Ionicons name="water" size={16} color="#2196F3" />
-                    <Text style={styles.weatherDetailText}>Umidade: 68%</Text>
-                  </View>
-                  <View style={styles.weatherDetailItem}>
-                    <Ionicons name="arrow-up" size={16} color="#FF5722" />
-                    <Text style={styles.weatherDetailText}>Vento: 8 km/h</Text>
-                  </View>
-                </View>
               </LinearGradient>
             </View>
           </View>
@@ -450,6 +727,19 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '600',
     marginBottom: 16,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  refreshButton: {
+    padding: 8,
+    backgroundColor: 'rgba(0, 255, 204, 0.1)',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(0, 255, 204, 0.3)',
   },
   healthCard: {
     borderRadius: 16,
@@ -584,6 +874,40 @@ const styles = StyleSheet.create({
     borderColor: '#3D3D3D',
     borderRadius: 12,
   },
+  weatherLoading: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 40,
+  },
+  weatherLoadingText: {
+    color: '#CCCCCC',
+    fontSize: 14,
+    marginTop: 16,
+    textAlign: 'center',
+  },
+  weatherError: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 40,
+  },
+  weatherErrorText: {
+    color: '#FF5722',
+    fontSize: 14,
+    marginTop: 16,
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  retryButton: {
+    backgroundColor: '#00FFCC',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  retryButtonText: {
+    color: '#1A1A1A',
+    fontSize: 14,
+    fontWeight: '600',
+  },
   weatherMain: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -591,9 +915,9 @@ const styles = StyleSheet.create({
   },
   weatherInfo: {
     marginLeft: 16,
+    flex: 1,
   },
   temperature: {
-    color: '#FFFFFF',
     fontSize: 28,
     fontWeight: '700',
     marginBottom: 4,
@@ -602,26 +926,36 @@ const styles = StyleSheet.create({
     color: '#CCCCCC',
     fontSize: 14,
     fontWeight: '400',
-    marginBottom: 2,
+    marginBottom: 4,
   },
   weatherLocation: {
     color: '#00FFCC',
     fontSize: 12,
     fontWeight: '500',
+    marginBottom: 4,
+  },
+  feelsLike: {
+    color: '#CCCCCC',
+    fontSize: 11,
+    fontWeight: '400',
   },
   weatherDetails: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    marginBottom: 8,
   },
   weatherDetailItem: {
     flexDirection: 'row',
     alignItems: 'center',
+    flex: 1,
+    justifyContent: 'center',
   },
   weatherDetailText: {
     color: '#CCCCCC',
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '400',
     marginLeft: 4,
+    textAlign: 'center',
   },
   propertyInfoCard: {
     borderRadius: 12,

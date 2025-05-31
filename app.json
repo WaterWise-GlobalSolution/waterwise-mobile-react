@@ -17,7 +17,11 @@
     ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.fiap.waterwise"
+      "bundleIdentifier": "com.fiap.waterwise",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "O WaterWise precisa acessar sua localização para fornecer dados meteorológicos precisos para sua região.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "O WaterWise precisa acessar sua localização para fornecer dados meteorológicos precisos para sua região."
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -25,7 +29,11 @@
         "backgroundColor": "#1A1A1A"
       },
       "package": "com.fiap.waterwise",
-      "softwareKeyboardLayoutMode": "pan"
+      "softwareKeyboardLayoutMode": "pan",
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png",
@@ -37,6 +45,15 @@
         {
           "photosPermission": "O WaterWise precisa acessar suas fotos para você definir sua foto de perfil.",
           "cameraPermission": "O WaterWise precisa acessar sua câmera para você tirar sua foto de perfil."
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "O WaterWise precisa acessar sua localização para fornecer dados meteorológicos precisos para sua região.",
+          "isIosBackgroundLocationEnabled": false,
+          "isAndroidBackgroundLocationEnabled": false,
+          "isAndroidForegroundServiceEnabled": false
         }
       ]
     ],
