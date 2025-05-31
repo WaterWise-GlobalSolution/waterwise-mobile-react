@@ -122,13 +122,13 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
   const degradationLevel = getDegradationLevel();
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
+    <SafeAreaView style={styles.container}>
       <LinearGradient
         colors={['#1A1A1A', '#2D2D2D', '#1A1A1A']}
         style={styles.gradient}
       >
-        {/* Header */}
-        <View style={styles.header}>
+        {/* Header - Fixo */}
+        <View style={[styles.header, { paddingTop: insets.top }]}>
           <View style={styles.headerLeft}>
             <Text style={styles.greeting}>{getGreeting()},</Text>
             <Text style={styles.userName}>
@@ -149,7 +149,9 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
           </View>
         </View>
 
+        {/* Conteúdo Scrollável */}
         <ScrollView
+          style={styles.scrollView}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
           refreshControl={
@@ -160,6 +162,8 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
               colors={['#00FFCC']}
             />
           }
+          bounces={true}
+          scrollEventThrottle={16}
         >
           {/* Property Health Status */}
           <View style={styles.section}>
@@ -370,11 +374,16 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
               </LinearGradient>
             </View>
           </View>
+
+          {/* Espaço extra no final para garantir que o scroll funcione até o final */}
+          <View style={styles.bottomPadding} />
         </ScrollView>
       </LinearGradient>
-    </View>
+    </SafeAreaView>
   );
 };
+
+export default DashboardScreen;
 
 const styles = StyleSheet.create({
   container: {
@@ -389,8 +398,9 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'flex-start',
     paddingHorizontal: 20,
-    paddingTop: 20,
     paddingBottom: 20,
+    backgroundColor: '#1A1A1A',
+    zIndex: 1,
   },
   headerLeft: {
     flex: 1,
@@ -425,9 +435,12 @@ const styles = StyleSheet.create({
     padding: 8,
     marginLeft: 8,
   },
+  scrollView: {
+    flex: 1,
+  },
   scrollContent: {
     paddingHorizontal: 20,
-    paddingBottom: 20,
+    paddingBottom: 40,
   },
   section: {
     marginBottom: 32,
@@ -639,6 +652,7 @@ const styles = StyleSheet.create({
     flex: 2,
     textAlign: 'right',
   },
+  bottomPadding: {
+    height: 40,
+  },
 });
-
-export default DashboardScreen;

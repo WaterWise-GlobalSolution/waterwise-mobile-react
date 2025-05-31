@@ -16,7 +16,16 @@ import SettingsScreen from './src/screens/Settings/SettingsScreen';
 // Import context
 import { AuthProvider } from './src/contexts/AuthContext';
 
-const Stack = createStackNavigator();
+type RootStackParamList = {
+  Welcome: undefined;
+  Login: undefined;
+  RegisterUser: undefined;
+  RegisterAddress: undefined;
+  Dashboard: undefined;
+  Settings: undefined;
+};
+
+const Stack = createStackNavigator<RootStackParamList>();
 
 export default function App() {
   const [isFirstLaunch, setIsFirstLaunch] = useState<boolean | null>(null);
@@ -60,31 +69,95 @@ export default function App() {
             headerShown: false,
             gestureEnabled: true,
             cardStyle: { backgroundColor: '#1A1A1A' },
-            animation: 'slide_from_right', // React Navigation v7 syntax
           }}
           initialRouteName={isFirstLaunch ? 'Welcome' : 'Login'}
         >
-          <Stack.Screen name="Welcome" component={WelcomeScreen} />
-          <Stack.Screen name="Login" component={LoginScreen} />
+          <Stack.Screen 
+            name="Welcome" 
+            component={WelcomeScreen}
+            options={{ animationTypeForReplace: 'push' }}
+          />
+          <Stack.Screen 
+            name="Login" 
+            component={LoginScreen}
+            options={{ animationTypeForReplace: 'push' }}
+          />
           <Stack.Screen 
             name="RegisterUser" 
             component={RegisterUserScreen}
-            options={{ animation: 'slide_from_right' }}
+            options={{ 
+              gestureDirection: 'horizontal',
+              cardStyleInterpolator: ({ current, layouts }) => {
+                return {
+                  cardStyle: {
+                    transform: [
+                      {
+                        translateX: current.progress.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [layouts.screen.width, 0],
+                        }),
+                      },
+                    ],
+                  },
+                };
+              },
+            }}
           />
           <Stack.Screen 
             name="RegisterAddress" 
             component={RegisterAddressScreen}
-            options={{ animation: 'slide_from_right' }}
+            options={{ 
+              gestureDirection: 'horizontal',
+              cardStyleInterpolator: ({ current, layouts }) => {
+                return {
+                  cardStyle: {
+                    transform: [
+                      {
+                        translateX: current.progress.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [layouts.screen.width, 0],
+                        }),
+                      },
+                    ],
+                  },
+                };
+              },
+            }}
           />
           <Stack.Screen 
             name="Dashboard" 
             component={DashboardScreen}
-            options={{ animation: 'fade' }}
+            options={{ 
+              gestureEnabled: false,
+              cardStyleInterpolator: ({ current }) => {
+                return {
+                  cardStyle: {
+                    opacity: current.progress,
+                  },
+                };
+              },
+            }}
           />
           <Stack.Screen 
             name="Settings" 
             component={SettingsScreen}
-            options={{ animation: 'slide_from_right' }}
+            options={{ 
+              gestureDirection: 'horizontal',
+              cardStyleInterpolator: ({ current, layouts }) => {
+                return {
+                  cardStyle: {
+                    transform: [
+                      {
+                        translateX: current.progress.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [layouts.screen.width, 0],
+                        }),
+                      },
+                    ],
+                  },
+                };
+              },
+            }}
           />
         </Stack.Navigator>
       </NavigationContainer>
