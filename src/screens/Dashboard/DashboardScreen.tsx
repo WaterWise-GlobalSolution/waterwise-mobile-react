@@ -61,7 +61,7 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
     alerts: 0,
     soilHealth: 'Carregando...',
     sensorsActive: 0,
-    lastReading: null,
+    lastReading: null as string | null,
     isOffline: false,
   });
 
@@ -199,8 +199,11 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
       const API_KEY = '15fdde76e737dbe2d971e8afc682ae3c';
       const url = `https://api.openweathermap.org/data/2.5/weather?lat=${latitude}&lon=${longitude}&appid=${API_KEY}&units=metric&lang=pt_br`;
 
-      const response = await fetch(url, { timeout: 10000 });
-      
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
+      const response = await fetch(url, { signal: controller.signal });
+      clearTimeout(timeoutId);
+
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
@@ -218,9 +221,12 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
       // Obter nome da cidade
       const geocodeUrl = `https://api.openweathermap.org/geo/1.0/reverse?lat=${latitude}&lon=${longitude}&limit=1&appid=${API_KEY}`;
       let locationName = propriedade?.nome_propriedade || 'Localização atual';
-      
+
       try {
-        const geocodeResponse = await fetch(geocodeUrl, { timeout: 5000 });
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000);
+        const geocodeResponse = await fetch(geocodeUrl, { signal: controller.signal });
+        clearTimeout(timeoutId);
         if (geocodeResponse.ok) {
           const geocodeData = await geocodeResponse.json();
           if (geocodeData.length > 0) {
