@@ -163,7 +163,11 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) => {
   };
 
   const getDegradationLevel = () => {
-    const nivel = propriedade?.id_nivel_degradacao || 1;
+    if (!propriedade?.nivel_degradacao) {
+      return { text: 'Não informado', color: '#888888', icon: 'help-circle' };
+    }
+
+    const nivel = propriedade.nivel_degradacao.nivel_numerico;
     const levels = {
       1: { text: 'Excelente', color: '#4CAF50', icon: 'checkmark-circle' },
       2: { text: 'Bom', color: '#8BC34A', icon: 'checkmark-circle-outline' },
@@ -278,7 +282,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) => {
                   <View style={styles.statusItem}>
                     <Ionicons name="layers-outline" size={20} color="#2196F3" />
                     <Text style={styles.statusLabel}>Solo</Text>
-                    <Text style={styles.statusValue}>{propriedade?.tipo_solo || 'N/A'}</Text>
+                    <Text style={styles.statusValue}>{propriedade?.nivel_degradacao?.codigo_degradacao || 'N/A'}</Text>
                   </View>
                   <View style={styles.statusItem}>
                     <Ionicons name={degradationLevel.icon as any} size={20} color={degradationLevel.color} />
@@ -301,21 +305,21 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) => {
                 title="Editar Perfil"
                 subtitle="Nome, email, telefone"
                 type="navigate"
-                onPress={() => {}}
+                onPress={() => Alert.alert('Em Desenvolvimento', 'Esta funcionalidade estará disponível em breve.')}
               />
               <SettingItem
                 icon="home-outline"
                 title="Propriedade"
                 subtitle="Dados da propriedade rural"
                 type="navigate"
-                onPress={() => {}}
+                onPress={() => Alert.alert('Em Desenvolvimento', 'Esta funcionalidade estará disponível em breve.')}
               />
               <SettingItem
                 icon="shield-outline"
                 title="Segurança"
                 subtitle="Senha, autenticação"
                 type="navigate"
-                onPress={() => {}}
+                onPress={() => Alert.alert('Em Desenvolvimento', 'Esta funcionalidade estará disponível em breve.')}
               />
             </View>
           </View>
@@ -384,14 +388,24 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) => {
                 title="Relatórios"
                 subtitle="Configurar relatórios automáticos"
                 type="navigate"
-                onPress={() => {}}
+                onPress={() => Alert.alert('Em Desenvolvimento', 'Esta funcionalidade estará disponível em breve.')}
               />
               <SettingItem
                 icon="leaf-outline"
                 title="Melhoramento do Solo"
                 subtitle="Dicas para melhorar a saúde do solo"
                 type="navigate"
-                onPress={() => {}}
+                onPress={() => {
+                  if (propriedade?.nivel_degradacao?.acoes_corretivas) {
+                    Alert.alert(
+                      'Recomendações para Melhoramento do Solo',
+                      propriedade.nivel_degradacao.acoes_corretivas,
+                      [{ text: 'OK' }]
+                    );
+                  } else {
+                    Alert.alert('Em Desenvolvimento', 'Esta funcionalidade estará disponível em breve.');
+                  }
+                }}
               />
             </View>
           </View>
@@ -405,21 +419,21 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) => {
                 title="Gerenciar Sensores"
                 subtitle="Configurar dispositivos IoT"
                 type="navigate"
-                onPress={() => {}}
+                onPress={() => Alert.alert('Em Desenvolvimento', 'Esta funcionalidade estará disponível em breve.')}
               />
               <SettingItem
                 icon="wifi-outline"
                 title="Conectividade"
                 subtitle="Status da conexão com sensores"
                 type="navigate"
-                onPress={() => {}}
+                onPress={() => Alert.alert('Em Desenvolvimento', 'Esta funcionalidade estará disponível em breve.')}
               />
               <SettingItem
                 icon="speedometer-outline"
                 title="Calibragem"
                 subtitle="Calibrar sensores de umidade e pH"
                 type="navigate"
-                onPress={() => {}}
+                onPress={() => Alert.alert('Em Desenvolvimento', 'Esta funcionalidade estará disponível em breve.')}
               />
             </View>
           </View>
@@ -433,33 +447,33 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) => {
                 title="Central de Ajuda"
                 subtitle="FAQ e tutoriais"
                 type="navigate"
-                onPress={() => {}}
+                onPress={() => Alert.alert('Em Desenvolvimento', 'Esta funcionalidade estará disponível em breve.')}
               />
               <SettingItem
                 icon="mail-outline"
                 title="Contato"
                 subtitle="Entre em contato conosco"
                 type="navigate"
-                onPress={() => {}}
+                onPress={() => Alert.alert('Contato', 'Email: suporte@waterwise.com\nTelefone: (11) 99999-9999', [{ text: 'OK' }])}
               />
               <SettingItem
                 icon="document-text-outline"
                 title="Termos e Privacidade"
                 subtitle="Políticas do aplicativo"
                 type="navigate"
-                onPress={() => {}}
+                onPress={() => Alert.alert('Em Desenvolvimento', 'Esta funcionalidade estará disponível em breve.')}
               />
               <SettingItem
                 icon="star-outline"
                 title="Avaliar o App"
                 subtitle="Deixe sua avaliação"
                 type="navigate"
-                onPress={() => {}}
+                onPress={() => Alert.alert('Avaliar App', 'Obrigado pelo interesse! Em breve você poderá avaliar o WaterWise na loja de apps.', [{ text: 'OK' }])}
               />
             </View>
           </View>
 
-          {/* Developer Info */}
+          {/* Technical Info */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Informações Técnicas</Text>
             <View style={styles.infoCard}>
@@ -482,10 +496,44 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) => {
                   </Text>
                 </View>
                 <View style={styles.infoRow}>
-                  <Text style={styles.infoLabel}>Status:</Text>
-                  <Text style={[styles.infoValue, { color: produtor?.status_ativo === 'S' ? '#4CAF50' : '#F44336' }]}>
-                    {produtor?.status_ativo === 'S' ? 'Ativo' : 'Inativo'}
+                  <Text style={styles.infoLabel}>Nível de Degradação:</Text>
+                  <Text style={[styles.infoValue, { color: degradationLevel.color }]}>
+                    Nível {propriedade?.nivel_degradacao?.nivel_numerico || 'N/A'}
                   </Text>
+                </View>
+                <View style={styles.infoRow}>
+                  <Text style={styles.infoLabel}>Coordenadas:</Text>
+                  <Text style={styles.infoValue}>
+                    {propriedade?.latitude?.toFixed(4)}°, {propriedade?.longitude?.toFixed(4)}°
+                  </Text>
+                </View>
+              </LinearGradient>
+            </View>
+          </View>
+
+          {/* Database Schema Info */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Sistema</Text>
+            <View style={styles.infoCard}>
+              <LinearGradient
+                colors={['#2D2D2D', '#3D3D3D']}
+                style={styles.infoCardGradient}
+              >
+                <View style={styles.infoRow}>
+                  <Text style={styles.infoLabel}>Versão do Banco:</Text>
+                  <Text style={styles.infoValue}>Oracle GS_WW v1.0</Text>
+                </View>
+                <View style={styles.infoRow}>
+                  <Text style={styles.infoLabel}>Estrutura:</Text>
+                  <Text style={styles.infoValue}>3FN Normalizada</Text>
+                </View>
+                <View style={styles.infoRow}>
+                  <Text style={styles.infoLabel}>Tabelas:</Text>
+                  <Text style={styles.infoValue}>9 tabelas principais</Text>
+                </View>
+                <View style={styles.infoRow}>
+                  <Text style={styles.infoLabel}>Funcionalidades:</Text>
+                  <Text style={styles.infoValue}>Procedures, Functions, Triggers</Text>
                 </View>
               </LinearGradient>
             </View>
@@ -508,6 +556,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) => {
           <View style={styles.versionContainer}>
             <Text style={styles.versionText}>WaterWise v1.0.0</Text>
             <Text style={styles.versionSubtext}>Global Solution 2025 - FIAP</Text>
+            <Text style={styles.versionSubtext}>Integrado com Oracle Database</Text>
           </View>
         </ScrollView>
       </LinearGradient>

@@ -10,6 +10,7 @@ import WelcomeScreen from './src/screens/Welcome/WelcomeScreen';
 import LoginScreen from './src/screens/Auth/LoginScreen';
 import RegisterUserScreen from './src/screens/Auth/RegisterUserScreen';
 import RegisterAddressScreen from './src/screens/Auth/RegisterAddressScreen';
+import { StackScreenProps } from '@react-navigation/stack';
 import DashboardScreen from './src/screens/Dashboard/DashboardScreen';
 import SettingsScreen from './src/screens/Settings/SettingsScreen';
 

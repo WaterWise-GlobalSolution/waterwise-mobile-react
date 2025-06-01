@@ -31,8 +31,9 @@
       "package": "com.fiap.waterwise",
       "softwareKeyboardLayoutMode": "pan",
       "permissions": [
-        "ACCESS_COARSE_LOCATION",
-        "ACCESS_FINE_LOCATION"
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.RECORD_AUDIO"
       ]
     },
     "web": {
@@ -59,8 +60,9 @@
     ],
     "extra": {
       "eas": {
-        "projectId": "your-project-id-here"
+        "projectId": "0d72d55e-ed24-4c1e-8377-55ace714cd44"
       }
-    }
+    },
+    "owner": "leooli321"
   }
 }
