@@ -38,7 +38,20 @@ interface WeatherData {
 const { width } = Dimensions.get('window');
 
 const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
-  const { produtor, propriedade, sensores, leituras, alertas, logout, getDashboardMetrics, getRecentAlerts, getSensorReadings } = useAuth();
+  const { 
+    produtor, 
+    propriedade, 
+    sensores, 
+    leituras, 
+    alertas, 
+    logout, 
+    getDashboardMetrics, 
+    getRecentAlerts, 
+    getSensorReadings,
+    isOnline,
+    syncData
+  } = useAuth();
+  
   const [refreshing, setRefreshing] = useState(false);
   const insets = useSafeAreaInsets();
   const [dashboardData, setDashboardData] = useState({
@@ -49,6 +62,7 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
     soilHealth: 'Carregando...',
     sensorsActive: 0,
     lastReading: null,
+    isOffline: false,
   });
 
   const [weatherData, setWeatherData] = useState<WeatherData>({
@@ -69,21 +83,16 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
 
   useEffect(() => {
     loadDashboardData();
-    requestLocationPermission();
+    initializeWeather();
   }, []);
 
-  const requestLocationPermission = async () => {
+  const initializeWeather = async () => {
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status === 'granted') {
         setLocationPermission(true);
         await getCurrentWeather();
       } else {
-        setWeatherData(prev => ({
-          ...prev,
-          isLoading: false,
-          error: 'Permissão de localização negada',
-        }));
         // Usar localização da propriedade como fallback
         await getWeatherByCoordinates(
           propriedade?.latitude || -23.5505199,
@@ -91,123 +100,26 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
         );
       }
     } catch (error) {
-      console.error('Error requesting location permission:', error);
-      setWeatherData(prev => ({
-        ...prev,
-        isLoading: false,
-        error: 'Erro ao solicitar permissão',
-      }));
+      console.error('Error initializing weather:', error);
+      setMockWeatherData();
     }
   };
 
-  const getCurrentWeather = async () => {
-    try {
-      setWeatherData(prev => ({ ...prev, isLoading: true, error: null }));
-
-      // Obter localização atual
-      const location = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.Balanced,
-      });
-
-      const { latitude, longitude } = location.coords;
-      await getWeatherByCoordinates(latitude, longitude);
-    } catch (error) {
-      console.error('Error getting current location:', error);
-      // Fallback para localização da propriedade
-      if (propriedade?.latitude && propriedade?.longitude) {
-        await getWeatherByCoordinates(propriedade.latitude, propriedade.longitude);
-      } else {
-        setWeatherData(prev => ({
-          ...prev,
-          isLoading: false,
-          error: 'Não foi possível obter localização',
-        }));
-      }
-    }
-  };
-
-  const getWeatherByCoordinates = async (latitude: number, longitude: number) => {
-    try {
-      // OpenWeatherMap API - WaterWise Key
-      const API_KEY = '15fdde76e737dbe2d971e8afc682ae3c';
-      const url = `https://api.openweathermap.org/data/2.5/weather?lat=${latitude}&lon=${longitude}&appid=${API_KEY}&units=metric&lang=pt_br`;
-
-      const response = await fetch(url);
-      
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const data = await response.json();
-
-      // Mapear ícones do OpenWeatherMap para ícones do Ionicons
-      const iconMap: { [key: string]: string } = {
-        '01d': 'sunny',           // céu limpo (dia)
-        '01n': 'moon',            // céu limpo (noite)
-        '02d': 'partly-sunny',    // poucas nuvens (dia)
-        '02n': 'cloudy-night',    // poucas nuvens (noite)
-        '03d': 'cloudy',          // nuvens dispersas
-        '03n': 'cloudy',          // nuvens dispersas
-        '04d': 'cloudy',          // nublado
-        '04n': 'cloudy',          // nublado
-        '09d': 'rainy',           // chuva
-        '09n': 'rainy',           // chuva
-        '10d': 'rainy',           // chuva (dia)
-        '10n': 'rainy',           // chuva (noite)
-        '11d': 'thunderstorm',    // tempestade
-        '11n': 'thunderstorm',    // tempestade
-        '13d': 'snow',            // neve
-        '13n': 'snow',            // neve
-        '50d': 'cloudy',          // névoa
-        '50n': 'cloudy',          // névoa
-      };
-
-      // Obter nome da cidade
-      const geocodeUrl = `https://api.openweathermap.org/geo/1.0/reverse?lat=${latitude}&lon=${longitude}&limit=1&appid=${API_KEY}`;
-      const geocodeResponse = await fetch(geocodeUrl);
-      let locationName = 'Localização atual';
-      
-      if (geocodeResponse.ok) {
-        const geocodeData = await geocodeResponse.json();
-        if (geocodeData.length > 0) {
-          locationName = `${geocodeData[0].name}, ${geocodeData[0].state || geocodeData[0].country}`;
-        }
-      }
-
-      setWeatherData({
-        temperature: Math.round(data.main.temp),
-        description: data.weather[0].description,
-        humidity: data.main.humidity,
-        windSpeed: Math.round(data.wind.speed * 3.6), // converter m/s para km/h
-        pressure: data.main.pressure,
-        feelsLike: Math.round(data.main.feels_like),
-        rainProbability: Math.round((data.clouds.all / 100) * 100), // usar cobertura de nuvens como proxy
-        location: locationName,
-        icon: iconMap[data.weather[0].icon] || 'partly-sunny',
-        isLoading: false,
-        error: null,
-      });
-
-    } catch (error) {
-      console.error('Error fetching weather data:', error);
-      
-      // Dados mock como fallback
-      const mockWeatherData = {
-        temperature: 24,
-        description: 'Parcialmente nublado',
-        humidity: 68,
-        windSpeed: 8,
-        pressure: 1013,
-        feelsLike: 26,
-        rainProbability: 15,
-        location: propriedade?.latitude && propriedade.latitude < -23 ? 'São Paulo, SP' : 'Região Metropolitana, SP',
-        icon: 'partly-sunny',
-        isLoading: false,
-        error: 'Usando dados simulados',
-      };
-
-      setWeatherData(mockWeatherData);
-    }
+  const setMockWeatherData = () => {
+    const mockWeatherData = {
+      temperature: 24,
+      description: 'Parcialmente nublado',
+      humidity: 68,
+      windSpeed: 8,
+      pressure: 1013,
+      feelsLike: 26,
+      rainProbability: 15,
+      location: propriedade?.nome_propriedade || 'Propriedade Rural',
+      icon: 'partly-sunny',
+      isLoading: false,
+      error: isOnline ? null : 'Dados offline',
+    };
+    setWeatherData(mockWeatherData);
   };
 
   const loadDashboardData = async () => {
@@ -218,21 +130,125 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
       }
     } catch (error) {
       console.error('Error loading dashboard data:', error);
+      // Definir dados padrão em caso de erro
+      setDashboardData({
+        waterUsage: propriedade?.area_hectares ? Math.floor(propriedade.area_hectares * 45) : 2250,
+        savings: propriedade?.area_hectares ? Math.floor(propriedade.area_hectares * 25) : 1250,
+        efficiency: 85,
+        alerts: alertas.length || 0,
+        soilHealth: propriedade?.nivel_degradacao?.descricao_degradacao || 'Bom',
+        sensorsActive: sensores.length || 3,
+        lastReading: leituras.length > 0 ? leituras[0].timestamp_leitura : null,
+        isOffline: !isOnline,
+      });
     }
   };
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await Promise.all([
-      loadDashboardData(),
-      getRecentAlerts(),
-      getSensorReadings(),
-      locationPermission ? getCurrentWeather() : getWeatherByCoordinates(
-        propriedade?.latitude || -23.5505199,
-        propriedade?.longitude || -46.6333094
-      )
-    ]);
-    setRefreshing(false);
+    try {
+      await Promise.all([
+        loadDashboardData(),
+        getRecentAlerts(),
+        getSensorReadings(),
+        syncData(), // Tentar sincronizar dados se online
+      ]);
+
+      if (locationPermission && isOnline) {
+        await getCurrentWeather();
+      } else if (isOnline) {
+        await getWeatherByCoordinates(
+          propriedade?.latitude || -23.5505199,
+          propriedade?.longitude || -46.6333094
+        );
+      }
+    } catch (error) {
+      console.error('Error refreshing data:', error);
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
+  const getCurrentWeather = async () => {
+    try {
+      setWeatherData(prev => ({ ...prev, isLoading: true, error: null }));
+
+      const location = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
+
+      const { latitude, longitude } = location.coords;
+      await getWeatherByCoordinates(latitude, longitude);
+    } catch (error) {
+      console.error('Error getting current location:', error);
+      if (propriedade?.latitude && propriedade?.longitude) {
+        await getWeatherByCoordinates(propriedade.latitude, propriedade.longitude);
+      } else {
+        setMockWeatherData();
+      }
+    }
+  };
+
+  const getWeatherByCoordinates = async (latitude: number, longitude: number) => {
+    try {
+      if (!isOnline) {
+        setMockWeatherData();
+        return;
+      }
+
+      const API_KEY = '15fdde76e737dbe2d971e8afc682ae3c';
+      const url = `https://api.openweathermap.org/data/2.5/weather?lat=${latitude}&lon=${longitude}&appid=${API_KEY}&units=metric&lang=pt_br`;
+
+      const response = await fetch(url, { timeout: 10000 });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+
+      const iconMap: { [key: string]: string } = {
+        '01d': 'sunny', '01n': 'moon', '02d': 'partly-sunny', '02n': 'cloudy-night',
+        '03d': 'cloudy', '03n': 'cloudy', '04d': 'cloudy', '04n': 'cloudy',
+        '09d': 'rainy', '09n': 'rainy', '10d': 'rainy', '10n': 'rainy',
+        '11d': 'thunderstorm', '11n': 'thunderstorm', '13d': 'snow', '13n': 'snow',
+        '50d': 'cloudy', '50n': 'cloudy',
+      };
+
+      // Obter nome da cidade
+      const geocodeUrl = `https://api.openweathermap.org/geo/1.0/reverse?lat=${latitude}&lon=${longitude}&limit=1&appid=${API_KEY}`;
+      let locationName = propriedade?.nome_propriedade || 'Localização atual';
+      
+      try {
+        const geocodeResponse = await fetch(geocodeUrl, { timeout: 5000 });
+        if (geocodeResponse.ok) {
+          const geocodeData = await geocodeResponse.json();
+          if (geocodeData.length > 0) {
+            locationName = `${geocodeData[0].name}, ${geocodeData[0].state || geocodeData[0].country}`;
+          }
+        }
+      } catch (geocodeError) {
+        console.log('Geocode failed, using fallback location name');
+      }
+
+      setWeatherData({
+        temperature: Math.round(data.main.temp),
+        description: data.weather[0].description,
+        humidity: data.main.humidity,
+        windSpeed: Math.round(data.wind.speed * 3.6),
+        pressure: data.main.pressure,
+        feelsLike: Math.round(data.main.feels_like),
+        rainProbability: Math.round((data.clouds.all / 100) * 100),
+        location: locationName,
+        icon: iconMap[data.weather[0].icon] || 'partly-sunny',
+        isLoading: false,
+        error: null,
+      });
+
+    } catch (error) {
+      console.error('Error fetching weather data:', error);
+      setMockWeatherData();
+    }
   };
 
   const handleLogout = async () => {
@@ -258,6 +274,15 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
   };
 
   const handleWeatherRefresh = async () => {
+    if (!isOnline) {
+      Alert.alert(
+        'Modo Offline',
+        'Você está offline. Os dados meteorológicos mostrados são simulados. Conecte-se à internet para obter dados atualizados.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+
     if (locationPermission) {
       await getCurrentWeather();
     } else {
@@ -268,7 +293,7 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
           { text: 'Cancelar', style: 'cancel' },
           { 
             text: 'Configurações', 
-            onPress: () => requestLocationPermission()
+            onPress: () => initializeWeather()
           }
         ]
       );
@@ -299,11 +324,33 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
   };
 
   const getTemperatureColor = (temp: number) => {
-    if (temp <= 10) return '#2196F3'; // Azul - muito frio
-    if (temp <= 20) return '#00BCD4'; // Ciano - frio
-    if (temp <= 25) return '#4CAF50'; // Verde - agradável
-    if (temp <= 30) return '#FF9800'; // Laranja - quente
-    return '#F44336'; // Vermelho - muito quente
+    if (temp <= 10) return '#2196F3';
+    if (temp <= 20) return '#00BCD4';
+    if (temp <= 25) return '#4CAF50';
+    if (temp <= 30) return '#FF9800';
+    return '#F44336';
+  };
+
+  const formatLastReading = (timestamp: string | null) => {
+    if (!timestamp) return 'Nunca';
+    
+    try {
+      const date = new Date(timestamp);
+      const now = new Date();
+      const diff = now.getTime() - date.getTime();
+      const minutes = Math.floor(diff / (1000 * 60));
+      const hours = Math.floor(minutes / 60);
+      
+      if (minutes < 60) {
+        return `${minutes}min atrás`;
+      } else if (hours < 24) {
+        return `${hours}h atrás`;
+      } else {
+        return date.toLocaleDateString('pt-BR');
+      }
+    } catch (error) {
+      return 'Erro na data';
+    }
   };
 
   const StatCard = ({ icon, title, value, unit, color }: any) => (
@@ -345,10 +392,21 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
         colors={['#1A1A1A', '#2D2D2D', '#1A1A1A']}
         style={styles.gradient}
       >
-        {/* Header - Fixo */}
+        {/* Header */}
         <View style={[styles.header, { paddingTop: insets.top }]}>
           <View style={styles.headerLeft}>
-            <Text style={styles.greeting}>{getGreeting()},</Text>
+            <View style={styles.connectionStatus}>
+              <Text style={styles.greeting}>{getGreeting()},</Text>
+              <View style={styles.statusIndicator}>
+                <View style={[
+                  styles.statusDot, 
+                  { backgroundColor: isOnline ? '#4CAF50' : '#FF9800' }
+                ]} />
+                <Text style={styles.statusText}>
+                  {isOnline ? 'Online' : 'Offline'}
+                </Text>
+              </View>
+            </View>
             <Text style={styles.userName}>
               {produtor?.nome_completo?.split(' ')[0] || 'Usuário'}
             </Text>
@@ -378,12 +436,250 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
               onRefresh={onRefresh}
               tintColor="#00FFCC"
               colors={['#00FFCC']}
+              title={isOnline ? "Atualizando..." : "Dados offline"}
             />
           }
           bounces={true}
           scrollEventThrottle={16}
         >
-          {/* Property Health Status */}
+          {/* Statistics Cards */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Resumo do Dia</Text>
+            <View style={styles.statsContainer}>
+              <StatCard
+                icon="water-outline"
+                title="Uso de Água"
+                value={String(dashboardData.waterUsage.toLocaleString('pt-BR'))}
+                unit="L"
+                color="#2196F3"
+              />
+              <StatCard
+                icon="leaf-outline"
+                title="Economia"
+                value={String(dashboardData.savings.toLocaleString('pt-BR'))}
+                unit="L"
+                color="#4CAF50"
+              />
+            </View>
+            <View style={styles.statsContainer}>
+              <StatCard
+                icon="speedometer-outline"
+                title="Eficiência"
+                value={String(dashboardData.efficiency)}
+                unit="%"
+                color="#00FFCC"
+              />
+              <StatCard
+                icon="warning-outline"
+                title="Alertas"
+                value={String(dashboardData.alerts)}
+                unit="ativos"
+                color={dashboardData.alerts > 0 ? "#FF9800" : "#4CAF50"}
+              />
+            </View>
+          </View>
+
+          {/* Weather Section */}
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Condições Climáticas</Text>
+              {!weatherData.isLoading && (
+                <TouchableOpacity onPress={handleWeatherRefresh} style={styles.refreshButton}>
+                  <Ionicons name="refresh" size={16} color="#00FFCC" />
+                </TouchableOpacity>
+              )}
+            </View>
+            <View style={styles.weatherCard}>
+              <LinearGradient
+                colors={['#2D2D2D', '#3D3D3D']}
+                style={styles.weatherCardGradient}
+              >
+                {weatherData.isLoading ? (
+                  <View style={styles.weatherLoading}>
+                    <ActivityIndicator size="large" color="#00FFCC" />
+                    <Text style={styles.weatherLoadingText}>Carregando clima...</Text>
+                  </View>
+                ) : (
+                  <>
+                    <View style={styles.weatherMain}>
+                      <Ionicons 
+                        name={weatherData.icon as any} 
+                        size={64} 
+                        color={getTemperatureColor(weatherData.temperature)} 
+                      />
+                      <View style={styles.weatherInfo}>
+                        <Text style={[
+                          styles.temperature, 
+                          { color: getTemperatureColor(weatherData.temperature) }
+                        ]}>
+                          {String(weatherData.temperature)}°C
+                        </Text>
+                        <Text style={styles.weatherDescription}>
+                          {weatherData.description}
+                        </Text>
+                        <Text style={styles.weatherLocation}>
+                          {weatherData.location}
+                        </Text>
+                        <Text style={styles.feelsLike}>
+                          Sensação: {String(weatherData.feelsLike)}°C
+                        </Text>
+                        {weatherData.error && (
+                          <Text style={styles.weatherError}>
+                            {weatherData.error}
+                          </Text>
+                        )}
+                      </View>
+                    </View>
+                    <View style={styles.weatherDetails}>
+                      <View style={styles.weatherDetailItem}>
+                        <Ionicons name="water-outline" size={16} color="#2196F3" />
+                        <Text style={styles.weatherDetailText}>
+                          {String(weatherData.humidity)}%
+                        </Text>
+                      </View>
+                      <View style={styles.weatherDetailItem}>
+                        <Ionicons name="speedometer-outline" size={16} color="#9E9E9E" />
+                        <Text style={styles.weatherDetailText}>
+                          {String(weatherData.pressure)}hPa
+                        </Text>
+                      </View>
+                      <View style={styles.weatherDetailItem}>
+                        <Ionicons name="rainy-outline" size={16} color="#FF9800" />
+                        <Text style={styles.weatherDetailText}>
+                          {String(weatherData.rainProbability)}%
+                        </Text>
+                      </View>
+                      <View style={styles.weatherDetailItem}>
+                        <Ionicons name="compass-outline" size={16} color="#4CAF50" />
+                        <Text style={styles.weatherDetailText}>
+                          {String(weatherData.windSpeed)}km/h
+                        </Text>
+                      </View>
+                    </View>
+                  </>
+                )}
+              </LinearGradient>
+            </View>
+          </View>
+
+          {/* Sensor Readings */}
+          {leituras.length > 0 && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Última Leitura dos Sensores</Text>
+              <View style={styles.sensorCard}>
+                <LinearGradient
+                  colors={['#2D2D2D', '#3D3D3D']}
+                  style={styles.sensorCardGradient}
+                >
+                  <View style={styles.sensorHeader}>
+                    <Text style={styles.sensorTitle}>Sensores IoT</Text>
+                    <Text style={styles.sensorTime}>
+                      {formatLastReading(leituras[0]?.timestamp_leitura)}
+                    </Text>
+                  </View>
+                  <View style={styles.sensorReadings}>
+                    {leituras[0]?.umidade_solo && (
+                      <View style={styles.sensorReading}>
+                        <Ionicons name="water-outline" size={20} color="#2196F3" />
+                        <Text style={styles.sensorLabel}>Umidade do Solo</Text>
+                        <Text style={styles.sensorValue}>
+                          {String(leituras[0].umidade_solo.toFixed(1))}%
+                        </Text>
+                      </View>
+                    )}
+                    {leituras[0]?.temperatura_ar && (
+                      <View style={styles.sensorReading}>
+                        <Ionicons name="thermometer-outline" size={20} color="#FF9800" />
+                        <Text style={styles.sensorLabel}>Temperatura</Text>
+                        <Text style={styles.sensorValue}>
+                          {String(leituras[0].temperatura_ar.toFixed(1))}°C
+                        </Text>
+                      </View>
+                    )}
+                    {leituras[0]?.precipitacao_mm && (
+                      <View style={styles.sensorReading}>
+                        <Ionicons name="rainy-outline" size={20} color="#4CAF50" />
+                        <Text style={styles.sensorLabel}>Precipitação</Text>
+                        <Text style={styles.sensorValue}>
+                          {String(leituras[0].precipitacao_mm.toFixed(1))}mm
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                </LinearGradient>
+              </View>
+            </View>
+          )}
+
+          {/* Alerts Section */}
+          {alertas.length > 0 && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Alertas Recentes</Text>
+              <View style={styles.alertsContainer}>
+                {alertas.slice(0, 3).map((alerta) => (
+                  <View key={alerta.id_alerta} style={styles.alertCard}>
+                    <LinearGradient
+                      colors={['#2D2D2D', '#3D3D3D']}
+                      style={styles.alertCardGradient}
+                    >
+                      <View style={styles.alertHeader}>
+                        <View style={styles.alertIconContainer}>
+                          <Ionicons 
+                            name={alerta.id_nivel_severidade > 2 ? "warning" : "information-circle"} 
+                            size={20} 
+                            color={alerta.id_nivel_severidade > 2 ? "#FF9800" : "#2196F3"} 
+                          />
+                        </View>
+                        <View style={styles.alertContent}>
+                          <Text style={styles.alertTitle}>
+                            {alerta.descricao_alerta}
+                          </Text>
+                          <Text style={styles.alertTime}>
+                            {formatLastReading(alerta.timestamp_alerta)}
+                          </Text>
+                        </View>
+                      </View>
+                    </LinearGradient>
+                  </View>
+                ))}
+              </View>
+            </View>
+          )}
+
+          {/* Quick Actions */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Ações Rápidas</Text>
+            <QuickActionCard
+              icon="analytics-outline"
+              title="Ver Relatórios"
+              color="#2196F3"
+              onPress={() => Alert.alert('Em Desenvolvimento', 'Relatórios detalhados estarão disponíveis em breve.')}
+            />
+            <QuickActionCard
+              icon="settings-outline"
+              title="Configurar Sensores"
+              color="#FF9800"
+              onPress={() => Alert.alert('Em Desenvolvimento', 'Configuração de sensores estará disponível em breve.')}
+            />
+            <QuickActionCard
+              icon="leaf-outline"
+              title="Melhorar Solo"
+              color="#4CAF50"
+              onPress={() => {
+                if (propriedade?.nivel_degradacao?.acoes_corretivas) {
+                  Alert.alert(
+                    'Recomendações para Melhoramento',
+                    propriedade.nivel_degradacao.acoes_corretivas,
+                    [{ text: 'OK' }]
+                  );
+                } else {
+                  Alert.alert('Recomendações', 'Seu solo está em bom estado! Continue com as práticas atuais.');
+                }
+              }}
+            />
+          </View>
+
+          {/* Property Status */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Status da Propriedade</Text>
             <View style={styles.healthCard}>
@@ -396,7 +692,7 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
                     <Ionicons name="location-outline" size={20} color="#00FFCC" />
                     <Text style={styles.healthLabel}>Localização</Text>
                     <Text style={styles.healthValue}>
-                      {propriedade?.latitude?.toFixed(4)}°, {propriedade?.longitude?.toFixed(4)}°
+                      {propriedade?.latitude?.toFixed(4) || '0.0000'}°, {propriedade?.longitude?.toFixed(4) || '0.0000'}°
                     </Text>
                   </View>
                   <View style={styles.healthItem}>
@@ -408,9 +704,9 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
                   </View>
                   <View style={styles.healthItem}>
                     <Ionicons name="hardware-chip-outline" size={20} color="#2196F3" />
-                    <Text style={styles.healthLabel}>Sensores Ativos</Text>
+                    <Text style={styles.healthLabel}>Sensores</Text>
                     <Text style={styles.healthValue}>
-                      {dashboardData.sensorsActive}
+                      {String(dashboardData.sensorsActive)} ativos
                     </Text>
                   </View>
                 </View>
@@ -418,16 +714,33 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
             </View>
           </View>
 
-          {/* Espaço extra no final */}
+          {/* Offline Notice */}
+          {!isOnline && (
+            <View style={styles.section}>
+              <View style={styles.offlineNotice}>
+                <LinearGradient
+                  colors={['rgba(255, 152, 0, 0.1)', 'rgba(255, 152, 0, 0.2)']}
+                  style={styles.offlineNoticeGradient}
+                >
+                  <Ionicons name="cloud-offline-outline" size={24} color="#FF9800" />
+                  <View style={styles.offlineNoticeContent}>
+                    <Text style={styles.offlineNoticeTitle}>Modo Offline</Text>
+                    <Text style={styles.offlineNoticeText}>
+                      Você está visualizando dados salvos localmente. 
+                      Conecte-se à internet para sincronizar.
+                    </Text>
+                  </View>
+                </LinearGradient>
+              </View>
+            </View>
+          )}
+
           <View style={styles.bottomPadding} />
         </ScrollView>
       </LinearGradient>
     </SafeAreaView>
   );
 };
-
-export default DashboardScreen;
-
 
 const styles = StyleSheet.create({
   container: {
@@ -449,10 +762,31 @@ const styles = StyleSheet.create({
   headerLeft: {
     flex: 1,
   },
+  connectionStatus: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 4,
+  },
   greeting: {
     color: '#CCCCCC',
     fontSize: 16,
     fontWeight: '400',
+  },
+  statusIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  statusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginRight: 6,
+  },
+  statusText: {
+    color: '#CCCCCC',
+    fontSize: 12,
+    fontWeight: '500',
   },
   userName: {
     color: '#FFFFFF',
@@ -507,36 +841,6 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     borderWidth: 1,
     borderColor: 'rgba(0, 255, 204, 0.3)',
-  },
-  healthCard: {
-    borderRadius: 16,
-    overflow: 'hidden',
-  },
-  healthCardGradient: {
-    padding: 16,
-    borderWidth: 1,
-    borderColor: '#3D3D3D',
-    borderRadius: 16,
-  },
-  healthInfo: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  healthItem: {
-    alignItems: 'center',
-    flex: 1,
-  },
-  healthLabel: {
-    color: '#CCCCCC',
-    fontSize: 12,
-    marginTop: 8,
-    marginBottom: 4,
-  },
-  healthValue: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '600',
-    textAlign: 'center',
   },
   statsContainer: {
     flexDirection: 'row',
@@ -595,29 +899,6 @@ const styles = StyleSheet.create({
     marginTop: 16,
     textAlign: 'center',
   },
-  weatherError: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 40,
-  },
-  weatherErrorText: {
-    color: '#FF5722',
-    fontSize: 14,
-    marginTop: 16,
-    textAlign: 'center',
-    marginBottom: 16,
-  },
-  retryButton: {
-    backgroundColor: '#00FFCC',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 8,
-  },
-  retryButtonText: {
-    color: '#1A1A1A',
-    fontSize: 14,
-    fontWeight: '600',
-  },
   weatherMain: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -637,6 +918,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '400',
     marginBottom: 4,
+    textTransform: 'capitalize',
   },
   weatherLocation: {
     color: '#00FFCC',
@@ -648,6 +930,12 @@ const styles = StyleSheet.create({
     color: '#CCCCCC',
     fontSize: 11,
     fontWeight: '400',
+  },
+  weatherError: {
+    color: '#FF9800',
+    fontSize: 10,
+    fontWeight: '400',
+    marginTop: 2,
   },
   weatherDetails: {
     flexDirection: 'row',
@@ -771,36 +1059,67 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '500',
   },
-  propertyInfoCard: {
-    borderRadius: 12,
+  healthCard: {
+    borderRadius: 16,
     overflow: 'hidden',
   },
-  propertyInfoGradient: {
+  healthCardGradient: {
     padding: 16,
     borderWidth: 1,
     borderColor: '#3D3D3D',
-    borderRadius: 12,
+    borderRadius: 16,
   },
-  propertyInfoRow: {
+  healthInfo: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
   },
-  propertyInfoLabel: {
-    color: '#CCCCCC',
-    fontSize: 14,
-    fontWeight: '400',
+  healthItem: {
+    alignItems: 'center',
     flex: 1,
   },
-  propertyInfoValue: {
+  healthLabel: {
+    color: '#CCCCCC',
+    fontSize: 12,
+    marginTop: 8,
+    marginBottom: 4,
+    textAlign: 'center',
+  },
+  healthValue: {
     color: '#FFFFFF',
     fontSize: 14,
-    fontWeight: '500',
-    flex: 2,
-    textAlign: 'right',
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  offlineNotice: {
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  offlineNoticeGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 152, 0, 0.3)',
+    borderRadius: 12,
+  },
+  offlineNoticeContent: {
+    marginLeft: 12,
+    flex: 1,
+  },
+  offlineNoticeTitle: {
+    color: '#FF9800',
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  offlineNoticeText: {
+    color: '#CCCCCC',
+    fontSize: 12,
+    lineHeight: 16,
   },
   bottomPadding: {
     height: 40,
   },
 });
+
+export default DashboardScreen;

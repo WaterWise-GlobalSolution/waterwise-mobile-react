@@ -7,9 +7,7 @@
     "android": "npx expo start --android",
     "ios": "npx expo start --ios",
     "web": "npx expo start --web",
-    "test": "jest",
-    "lint": "eslint . --ext .ts,.tsx",
-    "build": "expo build"
+    "clear-cache": "npx expo start --clear"
   },
   "dependencies": {
     "expo": "~51.0.0",
@@ -35,14 +33,7 @@
     "@babel/core": "^7.20.0",
     "@types/react": "~18.2.0",
     "@types/react-native": "~0.73.0",
-    "typescript": "~5.3.0",
-    "@typescript-eslint/eslint-plugin": "^6.0.0",
-    "@typescript-eslint/parser": "^6.0.0",
-    "eslint": "^8.0.0",
-    "eslint-plugin-react": "^7.33.0",
-    "eslint-plugin-react-hooks": "^4.6.0",
-    "jest": "^29.0.0",
-    "@testing-library/react-native": "^12.0.0"
+    "typescript": "~5.3.0"
   },
   "private": true,
   "description": "WaterWise - Aplicativo Mobile para Gestão Inteligente de Recursos Hídricos em Propriedades Rurais",
@@ -55,7 +46,8 @@
     "oracle",
     "iot",
     "agricultura",
-    "sustentabilidade"
+    "sustentabilidade",
+    "offline-first"
   ],
   "author": {
     "name": "WaterWise Team",

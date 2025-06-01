@@ -27,7 +27,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
   const [isLoading, setIsLoading] = useState(false);
   const insets = useSafeAreaInsets();
   
-  const { login, quickLogin, isAuthenticated, loading } = useAuth();
+  const { login, quickLogin, isAuthenticated, loading, isOnline } = useAuth();
 
   useEffect(() => {
     if (isAuthenticated && !loading) {
@@ -49,10 +49,21 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
       if (success) {
         navigation.navigate('Dashboard');
       } else {
-        Alert.alert('Erro', 'Email ou senha incorretos');
+        // Mostrar mensagem específica baseada no status online
+        const message = isOnline 
+          ? 'Email ou senha incorretos' 
+          : 'Credenciais não encontradas offline. Verifique email e senha ou conecte-se à internet.';
+        
+        Alert.alert('Erro no Login', message);
       }
     } catch (error) {
-      Alert.alert('Erro', 'Falha na conexão. Tente novamente.');
+      console.error('Login error:', error);
+      Alert.alert(
+        'Erro de Conexão', 
+        isOnline 
+          ? 'Falha na conexão com o servidor. Tente novamente.' 
+          : 'Erro no login offline. Verifique suas credenciais.'
+      );
     } finally {
       setIsLoading(false);
     }
@@ -78,10 +89,23 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
     navigation.navigate('RegisterUser');
   };
 
+  const showOfflineLoginHelp = () => {
+    Alert.alert(
+      'Login Offline',
+      'Para testar o app offline, use uma das seguintes contas:\n\n' +
+      '• joao.silva@waterwise.com / joao123\n' +
+      '• maria.oliveira@waterwise.com / maria123\n' +
+      '• carlos.pereira@waterwise.com / carlos123\n\n' +
+      'Ou use o "Login Rápido" para acesso direto.',
+      [{ text: 'OK' }]
+    );
+  };
+
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#00FFCC" />
+        <Text style={styles.loadingText}>Carregando...</Text>
       </View>
     );
   }
@@ -92,6 +116,24 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
         colors={['#1A1A1A', '#2D2D2D', '#1A1A1A']}
         style={styles.gradient}
       >
+        {/* Status de Conexão */}
+        <View style={styles.connectionStatus}>
+          <View style={styles.statusIndicator}>
+            <View style={[
+              styles.statusDot, 
+              { backgroundColor: isOnline ? '#4CAF50' : '#FF9800' }
+            ]} />
+            <Text style={styles.statusText}>
+              {isOnline ? 'Online' : 'Offline'}
+            </Text>
+          </View>
+          {!isOnline && (
+            <TouchableOpacity onPress={showOfflineLoginHelp} style={styles.helpButton}>
+              <Ionicons name="help-circle-outline" size={20} color="#00FFCC" />
+            </TouchableOpacity>
+          )}
+        </View>
+
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           style={styles.keyboardView}
@@ -125,6 +167,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
                   keyboardType="email-address"
                   autoCapitalize="none"
                   autoComplete="email"
+                  editable={!isLoading}
                 />
               </View>
 
@@ -139,10 +182,12 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
                   onChangeText={setPassword}
                   secureTextEntry={!showPassword}
                   autoComplete="password"
+                  editable={!isLoading}
                 />
                 <TouchableOpacity
                   onPress={() => setShowPassword(!showPassword)}
                   style={styles.eyeIcon}
+                  disabled={isLoading}
                 >
                   <Ionicons
                     name={showPassword ? "eye-outline" : "eye-off-outline"}
@@ -151,6 +196,16 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
                   />
                 </TouchableOpacity>
               </View>
+
+              {/* Offline Notice */}
+              {!isOnline && (
+                <View style={styles.offlineNotice}>
+                  <Ionicons name="information-circle-outline" size={16} color="#FF9800" />
+                  <Text style={styles.offlineNoticeText}>
+                    Modo offline ativo. Use contas de demonstração disponíveis.
+                  </Text>
+                </View>
+              )}
 
               {/* Login Button */}
               <TouchableOpacity
@@ -170,13 +225,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
                 </LinearGradient>
               </TouchableOpacity>
 
-              {/* Forgot Password */}
-              <TouchableOpacity style={styles.forgotPasswordButton}>
-                <Text style={styles.forgotPasswordText}>Esqueceu sua senha?</Text>
-              </TouchableOpacity>
-            </View>
-
-                          {/* Dev Quick Login - APENAS PARA DESENVOLVIMENTO */}
+              {/* Quick Login para Desenvolvimento */}
               <TouchableOpacity
                 onPress={handleQuickLogin}
                 style={styles.quickLoginButton}
@@ -185,17 +234,77 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
                 {isLoading ? (
                   <ActivityIndicator color="#FF9800" size="small" />
                 ) : (
-                  <Text style={styles.quickLoginText}>🚀 Login Rápido (DEV)</Text>
+                  <>
+                    <Ionicons name="flash" size={16} color="#FF9800" />
+                    <Text style={styles.quickLoginText}>Login Rápido (Demo)</Text>
+                  </>
                 )}
               </TouchableOpacity>
 
-              {/* Register Section */}
-              <View style={styles.registerSection}>
-                <Text style={styles.registerText}>Não tem uma conta?</Text>
-                <TouchableOpacity onPress={handleRegister}>
-                  <Text style={styles.registerLink}>Cadastre-se</Text>
-                </TouchableOpacity>
-              </View>
+              {/* Demo Accounts para Offline */}
+              {!isOnline && (
+                <View style={styles.demoAccountsContainer}>
+                  <Text style={styles.demoAccountsTitle}>Contas de Demonstração:</Text>
+                  <TouchableOpacity 
+                    style={styles.demoAccount}
+                    onPress={() => {
+                      setEmail('joao.silva@waterwise.com');
+                      setPassword('joao123');
+                    }}
+                  >
+                    <Text style={styles.demoAccountText}>
+                      • joao.silva@waterwise.com / joao123
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity 
+                    style={styles.demoAccount}
+                    onPress={() => {
+                      setEmail('maria.oliveira@waterwise.com');
+                      setPassword('maria123');
+                    }}
+                  >
+                    <Text style={styles.demoAccountText}>
+                      • maria.oliveira@waterwise.com / maria123
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity 
+                    style={styles.demoAccount}
+                    onPress={() => {
+                      setEmail('carlos.pereira@waterwise.com');
+                      setPassword('carlos123');
+                    }}
+                  >
+                    <Text style={styles.demoAccountText}>
+                      • carlos.pereira@waterwise.com / carlos123
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              {/* Forgot Password */}
+              <TouchableOpacity 
+                style={styles.forgotPasswordButton}
+                onPress={() => {
+                  Alert.alert(
+                    'Recuperar Senha',
+                    isOnline 
+                      ? 'Esta funcionalidade estará disponível em breve.'
+                      : 'Recuperação de senha não disponível offline. Conecte-se à internet.',
+                    [{ text: 'OK' }]
+                  );
+                }}
+              >
+                <Text style={styles.forgotPasswordText}>Esqueceu sua senha?</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Register Section */}
+            <View style={styles.registerSection}>
+              <Text style={styles.registerText}>Não tem uma conta?</Text>
+              <TouchableOpacity onPress={handleRegister}>
+                <Text style={styles.registerLink}>Cadastre-se</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </KeyboardAvoidingView>
       </LinearGradient>
@@ -211,6 +320,32 @@ const styles = StyleSheet.create({
   gradient: {
     flex: 1,
   },
+  connectionStatus: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 10,
+  },
+  statusIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  statusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginRight: 6,
+  },
+  statusText: {
+    color: '#CCCCCC',
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  helpButton: {
+    padding: 4,
+  },
   keyboardView: {
     flex: 1,
   },
@@ -224,6 +359,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: '#1A1A1A',
+  },
+  loadingText: {
+    color: '#CCCCCC',
+    fontSize: 16,
+    marginTop: 16,
   },
   logoContainer: {
     alignItems: 'center',
@@ -281,6 +421,22 @@ const styles = StyleSheet.create({
   eyeIcon: {
     padding: 4,
   },
+  offlineNotice: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 152, 0, 0.1)',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 152, 0, 0.3)',
+  },
+  offlineNoticeText: {
+    color: '#FF9800',
+    fontSize: 12,
+    marginLeft: 8,
+    flex: 1,
+  },
   loginButton: {
     marginTop: 8,
     borderRadius: 12,
@@ -296,6 +452,46 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '600',
   },
+  quickLoginButton: {
+    backgroundColor: 'rgba(255, 152, 0, 0.1)',
+    borderWidth: 1,
+    borderColor: '#FF9800',
+    borderRadius: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    marginTop: 16,
+  },
+  quickLoginText: {
+    color: '#FF9800',
+    fontSize: 14,
+    fontWeight: '600',
+    marginLeft: 6,
+  },
+  demoAccountsContainer: {
+    backgroundColor: 'rgba(0, 255, 204, 0.05)',
+    borderRadius: 8,
+    padding: 16,
+    marginTop: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(0, 255, 204, 0.2)',
+  },
+  demoAccountsTitle: {
+    color: '#00FFCC',
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 12,
+  },
+  demoAccount: {
+    paddingVertical: 4,
+  },
+  demoAccountText: {
+    color: '#CCCCCC',
+    fontSize: 12,
+    fontFamily: 'monospace',
+  },
   forgotPasswordButton: {
     alignItems: 'center',
     marginTop: 16,
@@ -304,22 +500,6 @@ const styles = StyleSheet.create({
     color: '#00FFCC',
     fontSize: 14,
     fontWeight: '500',
-  },
-  quickLoginButton: {
-    backgroundColor: 'rgba(255, 152, 0, 0.2)',
-    borderWidth: 1,
-    borderColor: '#FF9800',
-    borderRadius: 8,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    alignItems: 'center',
-    marginTop: 20,
-    marginBottom: 20,
-  },
-  quickLoginText: {
-    color: '#FF9800',
-    fontSize: 14,
-    fontWeight: '600',
   },
   registerSection: {
     flexDirection: 'row',
