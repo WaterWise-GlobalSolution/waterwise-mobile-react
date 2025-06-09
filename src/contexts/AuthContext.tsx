@@ -4,7 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios'; // ✅ IMPORTAÇÃO CORRETA
 
 // Configuração da API
-const API_BASE_URL = 'http://10.0.2.2:5072/api/v1';
+const API_BASE_URL = 'http://10.0.2.2:5072/api/v1/';
 
 // Interfaces baseadas na API .NET
 interface ProdutorRural {
@@ -111,24 +111,39 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [initialized, setInitialized] = useState(false);
 
   // Verificar conectividade com a API
-  const checkApiConnection = async (): Promise<boolean> => {
-    try {
-      console.log('🔍 Testando conexão API:', API_BASE_URL);
-      const api = createApiInstance();
-      
-      // Testar endpoint de info da API .NET
-      const response = await api.get('/info', { timeout: 5000 });
-      
-      console.log('✅ API respondeu:', response.status);
+// Substitua apenas a função checkApiConnection no seu AuthContext.tsx:
+
+const checkApiConnection = async (): Promise<boolean> => {
+  try {
+    console.log('🔍 Testando conexão API:', API_BASE_URL);
+    const api = createApiInstance();
+    
+    // ✅ Usar endpoint que existe: /api/v1/NiveisDegradacao (mais leve)
+    const response = await api.get('/NiveisDegradacao?page=1&pageSize=1', { timeout: 5000 });
+    
+    console.log('✅ API respondeu:', response.status, '- Níveis de degradação carregados');
+    setIsOnline(true);
+    return true;
+  } catch (error: any) {
+    // Verificar se é erro de conectividade ou apenas dados
+    if (error.response) {
+      // API respondeu, mas com erro (401, 500, etc.)
+      console.log(`✅ API online - Status: ${error.response.status} (${error.response.statusText})`);
       setIsOnline(true);
       return true;
-    } catch (error: any) {
+    } else if (error.code === 'ECONNREFUSED' || error.code === 'NETWORK_ERROR') {
+      // Erro de conexão - API realmente offline
+      console.log('❌ API offline - Erro de conexão:', error.message);
+      setIsOnline(false);
+      return false;
+    } else {
+      // Timeout ou outros erros - considerar offline
       console.log('❌ API não disponível:', error.message);
-      console.log('🔄 Usando modo offline');
       setIsOnline(false);
       return false;
     }
-  };
+  }
+};
 
   // Inicializar contexto
   useEffect(() => {
