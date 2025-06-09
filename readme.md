@@ -20,6 +20,12 @@ Para melhor organização dos entregáveis e centralização de todas as soluç�
 
 ---
 
+
+## Veja o vídeo demonstração: **[YouTube](https://youtube.com/shorts/XONjheNM34s)**
+
+
+---
+
 # WaterWise - Aplicativo Mobile (Versão Offline-First)
 
 **WaterWise** é um aplicativo React Native desenvolvido para a Global Solution 2025 da FIAP, focado na gestão inteligente de recursos hídricos em propriedades rurais com suporte completo offline.
