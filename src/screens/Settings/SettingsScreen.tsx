@@ -337,14 +337,6 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) => {
                 onToggle={(value: boolean) => handleSettingChange('notifications', value)}
               />
               <SettingItem
-                icon="moon-outline"
-                title="Modo Escuro"
-                subtitle="Sempre ativado"
-                type="switch"
-                value={settings.darkMode}
-                onToggle={(value: boolean) => handleSettingChange('darkMode', value)}
-              />
-              <SettingItem
                 icon="sync-outline"
                 title="Sincronização Automática"
                 subtitle="Sincronizar dados automaticamente"
@@ -382,30 +374,6 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) => {
                 type="switch"
                 value={settings.maintenanceReminders}
                 onToggle={(value: boolean) => handleSettingChange('maintenanceReminders', value)}
-              />
-              <SettingItem
-                icon="analytics-outline"
-                title="Relatórios"
-                subtitle="Configurar relatórios automáticos"
-                type="navigate"
-                onPress={() => Alert.alert('Em Desenvolvimento', 'Esta funcionalidade estará disponível em breve.')}
-              />
-              <SettingItem
-                icon="leaf-outline"
-                title="Melhoramento do Solo"
-                subtitle="Dicas para melhorar a saúde do solo"
-                type="navigate"
-                onPress={() => {
-                  if (propriedade?.nivel_degradacao?.acoes_corretivas) {
-                    Alert.alert(
-                      'Recomendações para Melhoramento do Solo',
-                      propriedade.nivel_degradacao.acoes_corretivas,
-                      [{ text: 'OK' }]
-                    );
-                  } else {
-                    Alert.alert('Em Desenvolvimento', 'Esta funcionalidade estará disponível em breve.');
-                  }
-                }}
               />
             </View>
           </View>
@@ -470,72 +438,6 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) => {
                 type="navigate"
                 onPress={() => Alert.alert('Avaliar App', 'Obrigado pelo interesse! Em breve você poderá avaliar o WaterWise na loja de apps.', [{ text: 'OK' }])}
               />
-            </View>
-          </View>
-
-          {/* Technical Info */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Informações Técnicas</Text>
-            <View style={styles.infoCard}>
-              <LinearGradient
-                colors={['#2D2D2D', '#3D3D3D']}
-                style={styles.infoCardGradient}
-              >
-                <View style={styles.infoRow}>
-                  <Text style={styles.infoLabel}>ID do Produtor:</Text>
-                  <Text style={styles.infoValue}>{produtor?.id_produtor}</Text>
-                </View>
-                <View style={styles.infoRow}>
-                  <Text style={styles.infoLabel}>ID da Propriedade:</Text>
-                  <Text style={styles.infoValue}>{propriedade?.id_propriedade}</Text>
-                </View>
-                <View style={styles.infoRow}>
-                  <Text style={styles.infoLabel}>Data de Cadastro:</Text>
-                  <Text style={styles.infoValue}>
-                    {produtor?.data_cadastro ? new Date(produtor.data_cadastro).toLocaleDateString('pt-BR') : 'N/A'}
-                  </Text>
-                </View>
-                <View style={styles.infoRow}>
-                  <Text style={styles.infoLabel}>Nível de Degradação:</Text>
-                  <Text style={[styles.infoValue, { color: degradationLevel.color }]}>
-                    Nível {propriedade?.nivel_degradacao?.nivel_numerico || 'N/A'}
-                  </Text>
-                </View>
-                <View style={styles.infoRow}>
-                  <Text style={styles.infoLabel}>Coordenadas:</Text>
-                  <Text style={styles.infoValue}>
-                    {propriedade?.latitude?.toFixed(4)}°, {propriedade?.longitude?.toFixed(4)}°
-                  </Text>
-                </View>
-              </LinearGradient>
-            </View>
-          </View>
-
-          {/* Database Schema Info */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Sistema</Text>
-            <View style={styles.infoCard}>
-              <LinearGradient
-                colors={['#2D2D2D', '#3D3D3D']}
-                style={styles.infoCardGradient}
-              >
-                <View style={styles.infoRow}>
-                  <Text style={styles.infoLabel}>Versão do Banco:</Text>
-                  <Text style={styles.infoValue}>Oracle GS_WW v1.0</Text>
-                </View>
-                <View style={styles.infoRow}>
-                  <Text style={styles.infoLabel}>Estrutura:</Text>
-                  <Text style={styles.infoValue}>3FN Normalizada</Text>
-                </View>
-                <View style={styles.infoRow}>
-                  <Text style={styles.infoLabel}>Tabelas:</Text>
-                  <Text style={styles.infoValue}>9 tabelas principais</Text>
-                </View>
-                <View style={styles.infoRow}>
-                  <Text style={styles.infoLabel}>Funcionalidades:</Text>
-                  <Text style={styles.infoValue}>Procedures, Functions, Triggers</Text>
-                </View>
-              </LinearGradient>
             </View>
           </View>
 

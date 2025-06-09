@@ -14,7 +14,6 @@ import DashboardScreen from './src/screens/Dashboard/DashboardScreen';
 import SettingsScreen from './src/screens/Settings/SettingsScreen';
 import ReportsScreen from './src/screens/Reports/ReportsScreen';
 import SensorsScreen from './src/screens/Sensors/SensorsScreen';
-import SoilImprovementScreen from './src/screens/SoilImprovement/SoilImprovementScreen';
 
 // Import context
 import { AuthProvider, useAuth } from './src/contexts/AuthContext';
@@ -30,7 +29,6 @@ type RootStackParamList = {
   Settings: undefined;
   Reports: undefined;
   Sensors: undefined;
-  SoilImprovement: undefined;
 };
 
 const Stack = createStackNavigator<RootStackParamList>();
@@ -220,27 +218,6 @@ const AppNavigator: React.FC = () => {
         <Stack.Screen 
           name="Sensors" 
           component={SensorsScreen}
-          options={{ 
-            gestureDirection: 'horizontal',
-            cardStyleInterpolator: ({ current, layouts }) => {
-              return {
-                cardStyle: {
-                  transform: [
-                    {
-                      translateX: current.progress.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: [layouts.screen.width, 0],
-                      }),
-                    },
-                  ],
-                },
-              };
-            },
-          }}
-        />
-        <Stack.Screen 
-          name="SoilImprovement" 
-          component={SoilImprovementScreen}
           options={{ 
             gestureDirection: 'horizontal',
             cardStyleInterpolator: ({ current, layouts }) => {

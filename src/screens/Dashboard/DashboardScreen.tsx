@@ -665,12 +665,6 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
               color="#FF9800"
               onPress={() => navigation.navigate('Sensors')}
             />
-            <QuickActionCard
-              icon="leaf-outline"
-              title="Melhorar Solo"
-              color="#4CAF50"
-              onPress={() => navigation.navigate('SoilImprovement')}
-            />
           </View>
 
           {/* Property Status */}
