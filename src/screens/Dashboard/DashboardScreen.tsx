@@ -1,3 +1,4 @@
+// src/screens/Dashboard/DashboardScreen.tsx - VERSÃO COM DEBUG
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -16,6 +17,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../contexts/AuthContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Location from 'expo-location';
+import ApiDebugComponent from '../../components/ApiDebugComponent';
+import ApiDebugHelper from '../../utils/ApiDebugHelper';
 
 interface DashboardScreenProps {
   navigation: any;
@@ -54,6 +57,9 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
 
   const [refreshing, setRefreshing] = useState(false);
   const insets = useSafeAreaInsets();
+  const [showDebug, setShowDebug] = useState(false); // ✅ NOVO: Estado para debug
+  const [debugPressCount, setDebugPressCount] = useState(0); // ✅ NOVO: Contador para ativar debug
+  
   const [dashboardData, setDashboardData] = useState({
     waterUsage: 0,
     savings: 0,
@@ -84,7 +90,40 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
   useEffect(() => {
     loadDashboardData();
     initializeWeather();
+    
+    // ✅ NOVO: Executar diagnóstico automático em desenvolvimento
+    if (__DEV__) {
+      setTimeout(() => {
+        runDevelopmentDiagnostic();
+      }, 2000);
+    }
   }, []);
+
+  // ✅ NOVO: Diagnóstico automático para desenvolvimento
+  const runDevelopmentDiagnostic = async () => {
+    try {
+      console.log('🔧 Executando diagnóstico automático da API...');
+      await ApiDebugHelper.checkCommonIssues();
+    } catch (error) {
+      console.log('⚠️ Erro no diagnóstico automático:', error);
+    }
+  };
+
+  // ✅ NOVO: Ativar debug com múltiplos toques
+  const handleDebugPress = () => {
+    if (!__DEV__) return;
+    
+    const newCount = debugPressCount + 1;
+    setDebugPressCount(newCount);
+    
+    if (newCount >= 5) {
+      setShowDebug(true);
+      setDebugPressCount(0);
+      console.log('🔧 Debug mode ativado!');
+    } else {
+      console.log(`🔧 Debug: ${newCount}/5 toques`);
+    }
+  };
 
   const initializeWeather = async () => {
     try {
@@ -113,7 +152,7 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
       pressure: 1013,
       feelsLike: 26,
       rainProbability: 15,
-      location: propriedade?.nome_propriedade || 'Propriedade Rural',
+      location: propriedade?.nomePropriedade || 'Propriedade Rural',
       icon: 'partly-sunny',
       isLoading: false,
       error: isOnline ? null : 'Dados offline',
@@ -130,13 +169,13 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
     } catch (error) {
       console.error('Error loading dashboard data:', error);
       setDashboardData({
-        waterUsage: propriedade?.area_hectares ? Math.floor(propriedade.area_hectares * 45) : 2250,
-        savings: propriedade?.area_hectares ? Math.floor(propriedade.area_hectares * 25) : 1250,
+        waterUsage: propriedade?.areaHectares ? Math.floor(propriedade.areaHectares * 45) : 2250,
+        savings: propriedade?.areaHectares ? Math.floor(propriedade.areaHectares * 25) : 1250,
         efficiency: 85,
         alerts: alertas.length || 0,
-        soilHealth: propriedade?.nivel_degradacao?.descricao_degradacao || 'Bom',
+        soilHealth: propriedade?.nivelDegradacao || 'Bom',
         sensorsActive: sensores.length || 3,
-        lastReading: leituras.length > 0 ? leituras[0].timestamp_leitura : null,
+        lastReading: leituras.length > 0 ? leituras[0].timestampLeitura : null,
         isOffline: !isOnline,
       });
     }
@@ -216,7 +255,7 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
         '50d': 'cloudy', '50n': 'cloudy',
       };
 
-      let locationName = propriedade?.nome_propriedade || 'Localização atual';
+      let locationName = propriedade?.nomePropriedade || 'Localização atual';
 
       try {
         const geocodeUrl = `https://api.openweathermap.org/geo/1.0/reverse?lat=${latitude}&lon=${longitude}&limit=1&appid=${API_KEY}`;
@@ -311,11 +350,11 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
   };
 
   const getDegradationLevel = () => {
-    if (!propriedade?.nivel_degradacao) {
+    if (!propriedade?.nivelNumerico) {
       return { text: 'Não informado', color: '#888888' };
     }
 
-    const nivel = propriedade.nivel_degradacao.nivel_numerico;
+    const nivel = propriedade.nivelNumerico;
     const levels = {
       1: { text: 'Excelente', color: '#4CAF50' },
       2: { text: 'Bom', color: '#8BC34A' },
@@ -356,7 +395,6 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
     }
   };
 
-  // CORRIGIDO: StatCard sem String()
   const StatCard = ({ icon, title, value, unit, color }: any) => (
     <View style={styles.statCard}>
       <LinearGradient
@@ -400,7 +438,14 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
         <View style={[styles.header, { paddingTop: insets.top }]}>
           <View style={styles.headerLeft}>
             <View style={styles.connectionStatus}>
-              <Text style={styles.greeting}>{getGreeting()},</Text>
+              {/* ✅ NOVO: Toque múltiplo para ativar debug */}
+              <TouchableOpacity 
+                onPress={handleDebugPress}
+                style={styles.greetingContainer}
+              >
+                <Text style={styles.greeting}>{getGreeting()},</Text>
+              </TouchableOpacity>
+              
               <View style={styles.statusIndicator}>
                 <View style={[
                   styles.statusDot,
@@ -409,14 +454,18 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
                 <Text style={styles.statusText}>
                   {isOnline ? 'Online' : 'Offline'}
                 </Text>
+                {/* ✅ NOVO: Indicador de debug em desenvolvimento */}
+                {__DEV__ && (
+                  <Text style={styles.debugIndicator}> 🔧</Text>
+                )}
               </View>
             </View>
             <Text style={styles.userName}>
-              {produtor?.nome_completo?.split(' ')[0] || 'Usuário'}
+              {produtor?.nomeCompleto?.split(' ')[0] || 'Usuário'}
             </Text>
-            <Text style={styles.propertyName}>{propriedade?.nome_propriedade}</Text>
+            <Text style={styles.propertyName}>{propriedade?.nomePropriedade}</Text>
             <Text style={styles.propertyDetails}>
-              {propriedade?.area_hectares?.toFixed(1)}ha • {propriedade?.nivel_degradacao?.codigo_degradacao || 'N/A'}
+              {propriedade?.areaHectares?.toFixed(1)}ha • {degradationLevel.text}
             </Text>
           </View>
           <View style={styles.headerRight}>
@@ -450,14 +499,14 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Resumo do Dia</Text>
             <View style={styles.statsContainer}>
-<StatCard
+              <StatCard
                 icon="water-outline"
                 title="Uso de Água"
-                value={Number(dashboardData.savings).toLocaleString('pt-BR')}
+                value={Number(dashboardData.waterUsage).toLocaleString('pt-BR')}
                 unit="L"
                 color="#2196F3"
               />
-<StatCard
+              <StatCard
                 icon="leaf-outline"
                 title="Economia"
                 value={Number(dashboardData.savings).toLocaleString('pt-BR')}
@@ -466,14 +515,14 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
               />
             </View>
             <View style={styles.statsContainer}>
-<StatCard
+              <StatCard
                 icon="speedometer-outline"
                 title="Eficiência"
                 value={Number(dashboardData.efficiency)}
                 unit="%"
                 color="#00FFCC"
               />
-<StatCard
+              <StatCard
                 icon="warning-outline"
                 title="Alertas"
                 value={Number(dashboardData.alerts)}
@@ -578,74 +627,39 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
                   <View style={styles.sensorHeader}>
                     <Text style={styles.sensorTitle}>Sensores IoT</Text>
                     <Text style={styles.sensorTime}>
-                      {formatLastReading(leituras[0]?.timestamp_leitura)}
+                      {formatLastReading(leituras[0]?.timestampLeitura)}
                     </Text>
                   </View>
                   <View style={styles.sensorReadings}>
-                    {leituras[0]?.umidade_solo && (
+                    {leituras[0]?.umidadeSolo && (
                       <View style={styles.sensorReading}>
                         <Ionicons name="water-outline" size={20} color="#2196F3" />
                         <Text style={styles.sensorLabel}>Umidade do Solo</Text>
                         <Text style={styles.sensorValue}>
-                          {leituras[0].umidade_solo.toFixed(1)}%
+                          {leituras[0].umidadeSolo.toFixed(1)}%
                         </Text>
                       </View>
                     )}
-                    {leituras[0]?.temperatura_ar && (
+                    {leituras[0]?.temperaturaAr && (
                       <View style={styles.sensorReading}>
                         <Ionicons name="thermometer-outline" size={20} color="#FF9800" />
                         <Text style={styles.sensorLabel}>Temperatura</Text>
                         <Text style={styles.sensorValue}>
-                          {leituras[0].temperatura_ar.toFixed(1)}°C
+                          {leituras[0].temperaturaAr.toFixed(1)}°C
                         </Text>
                       </View>
                     )}
-                    {leituras[0]?.precipitacao_mm && (
+                    {leituras[0]?.precipitacaoMm && (
                       <View style={styles.sensorReading}>
                         <Ionicons name="rainy-outline" size={20} color="#4CAF50" />
                         <Text style={styles.sensorLabel}>Precipitação</Text>
                         <Text style={styles.sensorValue}>
-                          {leituras[0].precipitacao_mm.toFixed(1)}mm
+                          {leituras[0].precipitacaoMm.toFixed(1)}mm
                         </Text>
                       </View>
                     )}
                   </View>
                 </LinearGradient>
-              </View>
-            </View>
-          )}
-
-          {/* Alerts Section */}
-          {alertas.length > 0 && (
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Alertas Recentes</Text>
-              <View style={styles.alertsContainer}>
-                {alertas.slice(0, 3).map((alerta) => (
-                  <View key={alerta.id_alerta} style={styles.alertCard}>
-                    <LinearGradient
-                      colors={['#2D2D2D', '#3D3D3D']}
-                      style={styles.alertCardGradient}
-                    >
-                      <View style={styles.alertHeader}>
-                        <View style={styles.alertIconContainer}>
-                          <Ionicons
-                            name={alerta.id_nivel_severidade > 2 ? "warning" : "information-circle"}
-                            size={20}
-                            color={alerta.id_nivel_severidade > 2 ? "#FF9800" : "#2196F3"}
-                          />
-                        </View>
-                        <View style={styles.alertContent}>
-                          <Text style={styles.alertTitle}>
-                            {alerta.descricao_alerta}
-                          </Text>
-                          <Text style={styles.alertTime}>
-                            {formatLastReading(alerta.timestamp_alerta)}
-                          </Text>
-                        </View>
-                      </View>
-                    </LinearGradient>
-                  </View>
-                ))}
               </View>
             </View>
           )}
@@ -665,6 +679,15 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
               color="#FF9800"
               onPress={() => navigation.navigate('Sensors')}
             />
+            {/* ✅ NOVO: Botão de debug apenas em desenvolvimento */}
+            {__DEV__ && (
+              <QuickActionCard
+                icon="bug-outline"
+                title="Debug da API"
+                color="#9C27B0"
+                onPress={() => setShowDebug(true)}
+              />
+            )}
           </View>
 
           {/* Property Status */}
@@ -725,6 +748,12 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
 
           <View style={styles.bottomPadding} />
         </ScrollView>
+
+        {/* ✅ NOVO: Componente de Debug */}
+        <ApiDebugComponent 
+          visible={showDebug} 
+          onClose={() => setShowDebug(false)} 
+        />
       </LinearGradient>
     </SafeAreaView>
   );
@@ -756,6 +785,9 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: 4,
   },
+  greetingContainer: {
+    // ✅ NOVO: Container para o toque de debug
+  },
   greeting: {
     color: '#CCCCCC',
     fontSize: 16,
@@ -775,6 +807,10 @@ const styles = StyleSheet.create({
     color: '#CCCCCC',
     fontSize: 12,
     fontWeight: '500',
+  },
+  debugIndicator: {
+    color: '#FF9800',
+    fontSize: 12,
   },
   userName: {
     color: '#FFFFFF',
@@ -985,40 +1021,6 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
-  },
-  alertsContainer: {
-    gap: 12,
-  },
-  alertCard: {
-    borderRadius: 12,
-    overflow: 'hidden',
-  },
-  alertCardGradient: {
-    padding: 16,
-    borderWidth: 1,
-    borderColor: '#3D3D3D',
-    borderRadius: 12,
-  },
-  alertHeader: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-  },
-  alertIconContainer: {
-    marginRight: 12,
-    marginTop: 2,
-  },
-  alertContent: {
-    flex: 1,
-  },
-  alertTitle: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '500',
-    marginBottom: 4,
-  },
-  alertTime: {
-    color: '#CCCCCC',
-    fontSize: 12,
   },
   actionCard: {
     marginBottom: 12,
