@@ -3,7 +3,7 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Configuração da API
-const API_BASE_URL = 'http://192.168.1.10:5072/api/v1';
+const API_BASE_URL = 'http://10.0.2.2:5072/api/v1';
 
 // Interfaces baseadas na API .NET
 interface ProdutorRural {
