@@ -1,11 +1,12 @@
-// src/contexts/AuthContext.tsx - VERSÃO CORRIGIDA PARA API .NET
+// src/contexts/AuthContext.tsx - VERSÃO CORRIGIDA COM AXIOS
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import axios from 'axios'; // ✅ IMPORTAÇÃO CORRETA
 
-// Configuração da API - CORRIGIDO para emulador Android
+// Configuração da API
 const API_BASE_URL = 'http://10.0.2.2:5072/api/v1';
 
-// Interfaces baseadas na API .NET - CORRIGIDAS
+// Interfaces baseadas na API .NET
 interface ProdutorRural {
   id: number;
   nomeCompleto: string;
@@ -88,12 +89,11 @@ interface AuthProviderProps {
   children: ReactNode;
 }
 
-// Função para criar instância da API
+// ✅ Função CORRIGIDA para criar instância da API
 const createApiInstance = () => {
-  const axios = require('axios');
   return axios.create({
     baseURL: API_BASE_URL,
-    timeout: 8000, // Reduzido para 8s
+    timeout: 8000,
     headers: {
       'Content-Type': 'application/json',
     },
@@ -107,10 +107,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [leituras, setLeituras] = useState<LeituraSensor[]>([]);
   const [alertas, setAlertas] = useState<Alerta[]>([]);
   const [loading, setLoading] = useState(false);
-  const [isOnline, setIsOnline] = useState(false); // Começa false até verificar
+  const [isOnline, setIsOnline] = useState(false);
   const [initialized, setInitialized] = useState(false);
 
-  // Verificar conectividade com a API - MELHORADO
+  // Verificar conectividade com a API
   const checkApiConnection = async (): Promise<boolean> => {
     try {
       console.log('🔍 Testando conexão API:', API_BASE_URL);
@@ -165,7 +165,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           console.log('✅ Dados restaurados com sucesso');
         } else {
           console.log('ℹ️ Nenhuma sessão encontrada');
-          // Carregar dados mock mesmo sem sessão (para demonstração)
+          // Carregar dados mock mesmo sem sessão
           if (!apiAvailable) {
             await createDemoAccounts();
           }
@@ -181,7 +181,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     initializeAuth();
   }, []);
 
-  // NOVO: Criar contas demo para teste offline
+  // Criar contas demo para teste offline
   const createDemoAccounts = async () => {
     try {
       const demoAccounts = [
@@ -304,7 +304,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         console.log('✅ Propriedade carregada da API');
       }
       
-      // Carregar dados mock de sensores (já que a API não tem esses endpoints ainda)
+      // Carregar dados mock de sensores
       await loadMockSensorsData();
       
     } catch (error) {
