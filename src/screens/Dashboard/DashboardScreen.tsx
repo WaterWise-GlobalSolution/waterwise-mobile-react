@@ -1,4 +1,4 @@
-// src/screens/Dashboard/DashboardScreen.tsx - VERSÃO COM DEBUG
+// src/screens/Dashboard/DashboardScreen.tsx - VERSÃO ULTRA SEGURA
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -17,8 +17,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../contexts/AuthContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Location from 'expo-location';
-import ApiDebugComponent from '../../components/ApiDebugComponent';
-import ApiDebugHelper from '../../utils/ApiDebugHelper';
 
 interface DashboardScreenProps {
   navigation: any;
@@ -40,6 +38,22 @@ interface WeatherData {
 
 const { width } = Dimensions.get('window');
 
+// Função utilitária para garantir que sempre retornamos string
+const safeString = (value: any, fallback: string = ''): string => {
+  if (value === null || value === undefined) return fallback;
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number') return value.toString();
+  if (typeof value === 'boolean') return value.toString();
+  return String(value);
+};
+
+// Função utilitária para números seguros
+const safeNumber = (value: any, fallback: number = 0): number => {
+  if (typeof value === 'number' && !isNaN(value)) return value;
+  const parsed = parseFloat(value);
+  return isNaN(parsed) ? fallback : parsed;
+};
+
 const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
   const {
     produtor,
@@ -57,8 +71,8 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
 
   const [refreshing, setRefreshing] = useState(false);
   const insets = useSafeAreaInsets();
-  const [showDebug, setShowDebug] = useState(false); // ✅ NOVO: Estado para debug
-  const [debugPressCount, setDebugPressCount] = useState(0); // ✅ NOVO: Contador para ativar debug
+  const [showDebug, setShowDebug] = useState(false);
+  const [debugPressCount, setDebugPressCount] = useState(0);
   
   const [dashboardData, setDashboardData] = useState({
     waterUsage: 0,
@@ -90,26 +104,8 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
   useEffect(() => {
     loadDashboardData();
     initializeWeather();
-    
-    // ✅ NOVO: Executar diagnóstico automático em desenvolvimento
-    if (__DEV__) {
-      setTimeout(() => {
-        runDevelopmentDiagnostic();
-      }, 2000);
-    }
   }, []);
 
-  // ✅ NOVO: Diagnóstico automático para desenvolvimento
-  const runDevelopmentDiagnostic = async () => {
-    try {
-      console.log('🔧 Executando diagnóstico automático da API...');
-      await ApiDebugHelper.checkCommonIssues();
-    } catch (error) {
-      console.log('⚠️ Erro no diagnóstico automático:', error);
-    }
-  };
-
-  // ✅ NOVO: Ativar debug com múltiplos toques
   const handleDebugPress = () => {
     if (!__DEV__) return;
     
@@ -133,8 +129,8 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
         await getCurrentWeather();
       } else {
         await getWeatherByCoordinates(
-          propriedade?.latitude || -23.5505199,
-          propriedade?.longitude || -46.6333094
+          safeNumber(propriedade?.latitude, -23.5505199),
+          safeNumber(propriedade?.longitude, -46.6333094)
         );
       }
     } catch (error) {
@@ -152,7 +148,7 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
       pressure: 1013,
       feelsLike: 26,
       rainProbability: 15,
-      location: propriedade?.nomePropriedade || 'Propriedade Rural',
+      location: safeString(propriedade?.nomePropriedade, 'Propriedade Rural'),
       icon: 'partly-sunny',
       isLoading: false,
       error: isOnline ? null : 'Dados offline',
@@ -164,18 +160,28 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
     try {
       const metrics = await getDashboardMetrics();
       if (metrics) {
-        setDashboardData(metrics);
+        setDashboardData({
+          waterUsage: safeNumber(metrics.waterUsage, 0),
+          savings: safeNumber(metrics.savings, 0),
+          efficiency: safeNumber(metrics.efficiency, 0),
+          alerts: safeNumber(metrics.alerts, 0),
+          soilHealth: safeString(metrics.soilHealth, 'Não informado'),
+          sensorsActive: safeNumber(metrics.sensorsActive, 0),
+          lastReading: metrics.lastReading,
+          isOffline: Boolean(metrics.isOffline),
+        });
       }
     } catch (error) {
       console.error('Error loading dashboard data:', error);
+      const area = safeNumber(propriedade?.areaHectares, 50);
       setDashboardData({
-        waterUsage: propriedade?.areaHectares ? Math.floor(propriedade.areaHectares * 45) : 2250,
-        savings: propriedade?.areaHectares ? Math.floor(propriedade.areaHectares * 25) : 1250,
+        waterUsage: Math.floor(area * 45),
+        savings: Math.floor(area * 25),
         efficiency: 85,
-        alerts: alertas.length || 0,
-        soilHealth: propriedade?.nivelDegradacao || 'Bom',
-        sensorsActive: sensores.length || 3,
-        lastReading: leituras.length > 0 ? leituras[0].timestampLeitura : null,
+        alerts: Array.isArray(alertas) ? alertas.length : 0,
+        soilHealth: safeString(propriedade?.nivelDegradacao, 'Bom'),
+        sensorsActive: Array.isArray(sensores) ? sensores.length : 0,
+        lastReading: Array.isArray(leituras) && leituras.length > 0 ? leituras[0].timestampLeitura : null,
         isOffline: !isOnline,
       });
     }
@@ -195,8 +201,8 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
         await getCurrentWeather();
       } else if (isOnline) {
         await getWeatherByCoordinates(
-          propriedade?.latitude || -23.5505199,
-          propriedade?.longitude || -46.6333094
+          safeNumber(propriedade?.latitude, -23.5505199),
+          safeNumber(propriedade?.longitude, -46.6333094)
         );
       }
     } catch (error) {
@@ -218,8 +224,10 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
       await getWeatherByCoordinates(latitude, longitude);
     } catch (error) {
       console.error('Error getting current location:', error);
-      if (propriedade?.latitude && propriedade?.longitude) {
-        await getWeatherByCoordinates(propriedade.latitude, propriedade.longitude);
+      const lat = safeNumber(propriedade?.latitude);
+      const lng = safeNumber(propriedade?.longitude);
+      if (lat !== 0 && lng !== 0) {
+        await getWeatherByCoordinates(lat, lng);
       } else {
         setMockWeatherData();
       }
@@ -255,7 +263,7 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
         '50d': 'cloudy', '50n': 'cloudy',
       };
 
-      let locationName = propriedade?.nomePropriedade || 'Localização atual';
+      let locationName = safeString(propriedade?.nomePropriedade, 'Localização atual');
 
       try {
         const geocodeUrl = `https://api.openweathermap.org/geo/1.0/reverse?lat=${latitude}&lon=${longitude}&limit=1&appid=${API_KEY}`;
@@ -274,15 +282,15 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
       }
 
       setWeatherData({
-        temperature: Math.round(data.main.temp),
-        description: data.weather[0].description,
-        humidity: data.main.humidity,
-        windSpeed: Math.round(data.wind.speed * 3.6),
-        pressure: data.main.pressure,
-        feelsLike: Math.round(data.main.feels_like),
-        rainProbability: Math.round((data.clouds.all / 100) * 100),
+        temperature: Math.round(safeNumber(data.main?.temp, 0)),
+        description: safeString(data.weather?.[0]?.description, ''),
+        humidity: safeNumber(data.main?.humidity, 0),
+        windSpeed: Math.round(safeNumber(data.wind?.speed, 0) * 3.6),
+        pressure: safeNumber(data.main?.pressure, 0),
+        feelsLike: Math.round(safeNumber(data.main?.feels_like, 0)),
+        rainProbability: Math.round((safeNumber(data.clouds?.all, 0) / 100) * 100),
         location: locationName,
-        icon: iconMap[data.weather[0].icon] || 'partly-sunny',
+        icon: iconMap[safeString(data.weather?.[0]?.icon, '')] || 'partly-sunny',
         isLoading: false,
         error: null,
       });
@@ -350,11 +358,7 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
   };
 
   const getDegradationLevel = () => {
-    if (!propriedade?.nivelNumerico) {
-      return { text: 'Não informado', color: '#888888' };
-    }
-
-    const nivel = propriedade.nivelNumerico;
+    const nivel = safeNumber(propriedade?.nivelNumerico, 1);
     const levels = {
       1: { text: 'Excelente', color: '#4CAF50' },
       2: { text: 'Bom', color: '#8BC34A' },
@@ -395,6 +399,7 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
     }
   };
 
+  // Componentes com tratamento de dados ultra seguro
   const StatCard = ({ icon, title, value, unit, color }: any) => (
     <View style={styles.statCard}>
       <LinearGradient
@@ -402,11 +407,11 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
         style={styles.statCardGradient}
       >
         <View style={styles.statCardHeader}>
-          <Ionicons name={icon} size={24} color={color} />
+          <Ionicons name={icon || 'help'} size={24} color={color || '#CCCCCC'} />
         </View>
-        <Text style={styles.statValue}>{value}</Text>
-        <Text style={styles.statUnit}>{unit}</Text>
-        <Text style={styles.statTitle}>{title}</Text>
+        <Text style={styles.statValue}>{safeString(value, '0')}</Text>
+        <Text style={styles.statUnit}>{safeString(unit, '')}</Text>
+        <Text style={styles.statTitle}>{safeString(title, '')}</Text>
       </LinearGradient>
     </View>
   );
@@ -417,16 +422,24 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
         colors={['#2D2D2D', '#3D3D3D']}
         style={styles.actionCardGradient}
       >
-        <View style={[styles.actionIcon, { backgroundColor: color + '20' }]}>
-          <Ionicons name={icon} size={24} color={color} />
+        <View style={[styles.actionIcon, { backgroundColor: (color || '#CCCCCC') + '20' }]}>
+          <Ionicons name={icon || 'help'} size={24} color={color || '#CCCCCC'} />
         </View>
-        <Text style={styles.actionTitle}>{title}</Text>
+        <Text style={styles.actionTitle}>{safeString(title, 'Ação')}</Text>
         <Ionicons name="chevron-forward" size={16} color="#CCCCCC" />
       </LinearGradient>
     </TouchableOpacity>
   );
 
   const degradationLevel = getDegradationLevel();
+
+  // Garantir que todos os dados do usuário são seguros
+  const safeProdutorName = safeString(produtor?.nomeCompleto, 'Usuário');
+  const firstNameOnly = safeProdutorName.split(' ')[0] || 'Usuário';
+  const safePropriedadeName = safeString(propriedade?.nomePropriedade, 'Propriedade Rural');
+  const safeArea = safeNumber(propriedade?.areaHectares, 0);
+  const safeLatitude = safeNumber(propriedade?.latitude, 0);
+  const safeLongitude = safeNumber(propriedade?.longitude, 0);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -438,7 +451,6 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
         <View style={[styles.header, { paddingTop: insets.top }]}>
           <View style={styles.headerLeft}>
             <View style={styles.connectionStatus}>
-              {/* ✅ NOVO: Toque múltiplo para ativar debug */}
               <TouchableOpacity 
                 onPress={handleDebugPress}
                 style={styles.greetingContainer}
@@ -454,18 +466,15 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
                 <Text style={styles.statusText}>
                   {isOnline ? 'Online' : 'Offline'}
                 </Text>
-                {/* ✅ NOVO: Indicador de debug em desenvolvimento */}
                 {__DEV__ && (
                   <Text style={styles.debugIndicator}> 🔧</Text>
                 )}
               </View>
             </View>
-            <Text style={styles.userName}>
-              {produtor?.nomeCompleto?.split(' ')[0] || 'Usuário'}
-            </Text>
-            <Text style={styles.propertyName}>{propriedade?.nomePropriedade}</Text>
+            <Text style={styles.userName}>{firstNameOnly}</Text>
+            <Text style={styles.propertyName}>{safePropriedadeName}</Text>
             <Text style={styles.propertyDetails}>
-              {propriedade?.areaHectares?.toFixed(1)}ha • {degradationLevel.text}
+              {safeArea.toFixed(1)}ha • {safeString(degradationLevel.text, 'Não informado')}
             </Text>
           </View>
           <View style={styles.headerRight}>
@@ -502,14 +511,14 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
               <StatCard
                 icon="water-outline"
                 title="Uso de Água"
-                value={Number(dashboardData.waterUsage).toLocaleString('pt-BR')}
+                value={dashboardData.waterUsage.toLocaleString('pt-BR')}
                 unit="L"
                 color="#2196F3"
               />
               <StatCard
                 icon="leaf-outline"
                 title="Economia"
-                value={Number(dashboardData.savings).toLocaleString('pt-BR')}
+                value={dashboardData.savings.toLocaleString('pt-BR')}
                 unit="L"
                 color="#4CAF50"
               />
@@ -518,14 +527,14 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
               <StatCard
                 icon="speedometer-outline"
                 title="Eficiência"
-                value={Number(dashboardData.efficiency)}
+                value={dashboardData.efficiency.toString()}
                 unit="%"
                 color="#00FFCC"
               />
               <StatCard
                 icon="warning-outline"
                 title="Alertas"
-                value={Number(dashboardData.alerts)}
+                value={dashboardData.alerts.toString()}
                 unit="ativos"
                 color={dashboardData.alerts > 0 ? "#FF9800" : "#4CAF50"}
               />
@@ -568,17 +577,17 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
                           {weatherData.temperature}°C
                         </Text>
                         <Text style={styles.weatherDescription}>
-                          {weatherData.description}
+                          {safeString(weatherData.description, '')}
                         </Text>
                         <Text style={styles.weatherLocation}>
-                          {weatherData.location}
+                          {safeString(weatherData.location, '')}
                         </Text>
                         <Text style={styles.feelsLike}>
                           Sensação: {weatherData.feelsLike}°C
                         </Text>
                         {weatherData.error && (
                           <Text style={styles.weatherError}>
-                            {weatherData.error}
+                            {safeString(weatherData.error, '')}
                           </Text>
                         )}
                       </View>
@@ -616,7 +625,7 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
           </View>
 
           {/* Sensor Readings */}
-          {leituras.length > 0 && (
+          {Array.isArray(leituras) && leituras.length > 0 && (
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Última Leitura dos Sensores</Text>
               <View style={styles.sensorCard}>
@@ -636,7 +645,7 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
                         <Ionicons name="water-outline" size={20} color="#2196F3" />
                         <Text style={styles.sensorLabel}>Umidade do Solo</Text>
                         <Text style={styles.sensorValue}>
-                          {leituras[0].umidadeSolo.toFixed(1)}%
+                          {safeNumber(leituras[0].umidadeSolo, 0).toFixed(1)}%
                         </Text>
                       </View>
                     )}
@@ -645,16 +654,16 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
                         <Ionicons name="thermometer-outline" size={20} color="#FF9800" />
                         <Text style={styles.sensorLabel}>Temperatura</Text>
                         <Text style={styles.sensorValue}>
-                          {leituras[0].temperaturaAr.toFixed(1)}°C
+                          {safeNumber(leituras[0].temperaturaAr, 0).toFixed(1)}°C
                         </Text>
                       </View>
                     )}
-                    {leituras[0]?.precipitacaoMm && (
+                    {leituras[0]?.precipitacaoMm !== undefined && leituras[0].precipitacaoMm > 0 && (
                       <View style={styles.sensorReading}>
                         <Ionicons name="rainy-outline" size={20} color="#4CAF50" />
                         <Text style={styles.sensorLabel}>Precipitação</Text>
                         <Text style={styles.sensorValue}>
-                          {leituras[0].precipitacaoMm.toFixed(1)}mm
+                          {safeNumber(leituras[0].precipitacaoMm, 0).toFixed(1)}mm
                         </Text>
                       </View>
                     )}
@@ -679,7 +688,6 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
               color="#FF9800"
               onPress={() => navigation.navigate('Sensors')}
             />
-            {/* ✅ NOVO: Botão de debug apenas em desenvolvimento */}
             {__DEV__ && (
               <QuickActionCard
                 icon="bug-outline"
@@ -703,14 +711,14 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
                     <Ionicons name="location-outline" size={20} color="#00FFCC" />
                     <Text style={styles.healthLabel}>Localização</Text>
                     <Text style={styles.healthValue}>
-                      {propriedade?.latitude?.toFixed(4) || '0.0000'}°, {propriedade?.longitude?.toFixed(4) || '0.0000'}°
+                      {safeLatitude.toFixed(4)}°, {safeLongitude.toFixed(4)}°
                     </Text>
                   </View>
                   <View style={styles.healthItem}>
                     <Ionicons name="leaf-outline" size={20} color={degradationLevel.color} />
                     <Text style={styles.healthLabel}>Saúde do Solo</Text>
                     <Text style={[styles.healthValue, { color: degradationLevel.color }]}>
-                      {degradationLevel.text}
+                      {safeString(degradationLevel.text, 'Não informado')}
                     </Text>
                   </View>
                   <View style={styles.healthItem}>
@@ -748,12 +756,6 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
 
           <View style={styles.bottomPadding} />
         </ScrollView>
-
-        {/* ✅ NOVO: Componente de Debug */}
-        <ApiDebugComponent 
-          visible={showDebug} 
-          onClose={() => setShowDebug(false)} 
-        />
       </LinearGradient>
     </SafeAreaView>
   );
@@ -786,7 +788,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   greetingContainer: {
-    // ✅ NOVO: Container para o toque de debug
+    // Container para o toque de debug
   },
   greeting: {
     color: '#CCCCCC',

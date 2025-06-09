@@ -1,16 +1,16 @@
-// src/contexts/AuthContext.tsx - VERSÃO CORRIGIDA PARA API
+// src/contexts/AuthContext.tsx - VERSÃO LIMPA SEM DADOS MOCK
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
 
-// ✅ CONFIGURAÇÃO CORRETA DA API
+// ✅ CONFIGURAÇÃO DA API
 const API_BASE_URL = 'http://10.0.2.2:5072/api/v1';
 
 // Criar instância do axios configurada
 const createApiInstance = () => {
   return axios.create({
     baseURL: API_BASE_URL,
-    timeout: 8000,
+    timeout: 10000,
     headers: {
       'Content-Type': 'application/json',
     },
@@ -109,32 +109,28 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [isOnline, setIsOnline] = useState(false);
   const [initialized, setInitialized] = useState(false);
 
-  // ✅ FUNÇÃO CORRIGIDA PARA TESTAR API REAL
+  // ✅ VERIFICAR CONECTIVIDADE COM A API
   const checkApiConnection = async (): Promise<boolean> => {
     try {
       console.log('🔍 Testando conexão API:', API_BASE_URL);
       const api = createApiInstance();
       
-      // ✅ Testar endpoint que existe: /api/v1/NiveisDegradacao
+      // Testar endpoint básico
       const response = await api.get('/NiveisDegradacao?page=1&pageSize=1', { 
         timeout: 5000 
       });
       
-      console.log('✅ API respondeu:', response.status, '- Níveis de degradação carregados');
+      console.log('✅ API online - Status:', response.status);
       setIsOnline(true);
       return true;
     } catch (error: any) {
       if (error.response) {
-        // API respondeu, mas com erro (401, 500, etc.)
-        console.log(`✅ API online - Status: ${error.response.status} (${error.response.statusText})`);
+        // API respondeu, mas com erro (significa que está online)
+        console.log(`✅ API online - Status: ${error.response.status}`);
         setIsOnline(true);
         return true;
-      } else if (error.code === 'ECONNREFUSED' || error.code === 'NETWORK_ERROR') {
-        console.log('❌ API offline - Erro de conexão:', error.message);
-        setIsOnline(false);
-        return false;
       } else {
-        console.log('❌ API não disponível:', error.message);
+        console.log('❌ API offline - Erro:', error.message);
         setIsOnline(false);
         return false;
       }
@@ -148,10 +144,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         console.log('🔄 Inicializando AuthContext...');
         console.log('🌐 URL da API:', API_BASE_URL);
         
-        // Verificar conectividade primeiro
+        // Verificar conectividade
         const apiAvailable = await checkApiConnection();
         console.log('🌐 Status API:', apiAvailable ? 'Online' : 'Offline');
         
+        // Tentar restaurar sessão salva
         const [produtorData, propriedadeData] = await Promise.all([
           AsyncStorage.getItem('produtor'),
           AsyncStorage.getItem('propriedade'),
@@ -166,20 +163,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           setProdutor(produtorParsed);
           setPropriedade(propriedadeParsed);
           
-          // Carregar dados adicionais
+          // Carregar dados adicionais se API estiver online
           if (apiAvailable) {
             await loadUserData(produtorParsed.id);
           } else {
-            await loadOfflineData();
+            await loadBasicSensorData();
           }
           
           console.log('✅ Dados restaurados com sucesso');
         } else {
-          console.log('ℹ️ Nenhuma sessão encontrada');
-          // Carregar dados mock mesmo sem sessão
-          if (!apiAvailable) {
-            await createDemoAccounts();
-          }
+          console.log('ℹ️ Nenhuma sessão encontrada - usuário precisa fazer login');
         }
       } catch (error) {
         console.error('❌ Erro ao inicializar AuthContext:', error);
@@ -192,451 +185,268 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     initializeAuth();
   }, []);
 
-  // ✅ FUNÇÃO DE LOGIN CORRIGIDA
+  // ✅ FUNÇÃO DE LOGIN VIA API
   const login = async (email: string, password: string): Promise<boolean> => {
     try {
       console.log('🔑 Tentativa de login:', email);
-      console.log('🌐 API URL:', API_BASE_URL);
       setLoading(true);
       
-      // Verificar conectividade primeiro
+      // Verificar se API está online
       const apiOnline = await checkApiConnection();
-      console.log('🌐 API Status:', apiOnline ? 'Online' : 'Offline');
       
-      if (apiOnline) {
-        try {
-          // ✅ Login via API .NET usando endpoint correto
-          console.log('🚀 Fazendo login via API...');
-          const api = createApiInstance();
-          
-          // ✅ ENDPOINT CORRETO: /LoginProdutor
-          const response = await api.post('/LoginProdutor', {
-            email: email.toLowerCase().trim(),
-            senha: password
-          });
-
-          console.log('📨 Resposta da API:', response.status, response.data);
-
-          if (response.data && response.data.id) {
-            console.log('✅ Login bem-sucedido via API');
-            
-            const produtorData: ProdutorRural = {
-              id: response.data.id,
-              nomeCompleto: response.data.nomeCompleto,
-              cpfCnpj: response.data.cpfCnpj,
-              email: response.data.email,
-              telefone: response.data.telefone,
-              dataCadastro: response.data.dataCadastro || new Date().toISOString(),
-            };
-
-            // Salvar no AsyncStorage
-            await AsyncStorage.setItem('produtor', JSON.stringify(produtorData));
-            setProdutor(produtorData);
-            
-            // Carregar dados adicionais
-            await loadUserData(produtorData.id);
-            
-            return true;
-          } else {
-            console.log('❌ Resposta da API inválida');
-            return false;
-          }
-        } catch (apiError: any) {
-          console.log('❌ Erro na API, tentando offline:', apiError.message);
-          // Continuar para tentativa offline
-        }
+      if (!apiOnline) {
+        console.log('❌ API offline - Login não disponível');
+        return false;
       }
       
-      // Fallback offline
-      console.log('🔄 Tentando login offline...');
-      const savedAccounts = await AsyncStorage.getItem('offlineAccounts');
-      if (savedAccounts) {
-        const accounts = JSON.parse(savedAccounts);
-        const account = accounts.find((acc: any) => 
-          acc.email.toLowerCase() === email.toLowerCase() && acc.senha === password
-        );
+      console.log('🚀 Fazendo login via API...');
+      const api = createApiInstance();
+      
+      const response = await api.post('/LoginProdutor', {
+        email: email.toLowerCase().trim(),
+        senha: password
+      });
+
+      console.log('📨 Resposta da API:', response.status);
+
+      if (response.data && response.data.id) {
+        console.log('✅ Login bem-sucedido via API');
         
-        if (account) {
-          console.log('✅ Login offline bem-sucedido');
-          
-          await Promise.all([
-            AsyncStorage.setItem('produtor', JSON.stringify(account.produtor)),
-            AsyncStorage.setItem('propriedade', JSON.stringify(account.propriedade))
-          ]);
-          
-          setProdutor(account.produtor);
-          setPropriedade(account.propriedade);
-          await loadOfflineData();
-          return true;
-        }
-      }
+        const produtorData: ProdutorRural = {
+          id: response.data.id,
+          nomeCompleto: response.data.nomeCompleto,
+          cpfCnpj: response.data.cpfCnpj,
+          email: response.data.email,
+          telefone: response.data.telefone,
+          dataCadastro: response.data.dataCadastro || new Date().toISOString(),
+        };
 
-      console.log('❌ Credenciais não encontradas');
-      return false;
-    } catch (error) {
-      console.error('❌ Erro no login:', error);
+        // Salvar no AsyncStorage
+        await AsyncStorage.setItem('produtor', JSON.stringify(produtorData));
+        setProdutor(produtorData);
+        
+        // Carregar dados da propriedade
+        await loadUserData(produtorData.id);
+        
+        return true;
+      } else {
+        console.log('❌ Resposta da API inválida');
+        return false;
+      }
+    } catch (error: any) {
+      console.error('❌ Erro no login:', error.response?.data || error.message);
       return false;
     } finally {
       setLoading(false);
     }
   };
 
-  // ✅ FUNÇÃO DE REGISTRO CORRIGIDA
+  // ✅ FUNÇÃO DE REGISTRO VIA API
   const register = async (produtorData: any, propriedadeData: any): Promise<boolean> => {
     try {
       console.log('📝 Registrando novo usuário...');
       setLoading(true);
       
+      // Verificar se API está online
       const apiOnline = await checkApiConnection();
       
-      if (apiOnline) {
-        try {
-          console.log('🚀 Cadastrando via API...');
-          const api = createApiInstance();
-          
-          // ✅ PAYLOAD CORRETO PARA A API
-          const produtorPayload = {
-            nomeCompleto: produtorData.nome_completo,
-            cpfCnpj: produtorData.cpf_cnpj || null,
-            email: produtorData.email,
-            telefone: produtorData.telefone || null,
-            senha: produtorData.senha
+      if (!apiOnline) {
+        console.log('❌ API offline - Cadastro não disponível');
+        return false;
+      }
+      
+      console.log('🚀 Cadastrando via API...');
+      const api = createApiInstance();
+      
+      // 1. Criar produtor
+      const produtorPayload = {
+        nomeCompleto: produtorData.nome_completo,
+        cpfCnpj: produtorData.cpf_cnpj || null,
+        email: produtorData.email,
+        telefone: produtorData.telefone || null,
+        senha: produtorData.senha
+      };
+
+      const produtorResponse = await api.post('/produtores', produtorPayload);
+      
+      if (produtorResponse.data && produtorResponse.data.id) {
+        const newProdutor: ProdutorRural = {
+          id: produtorResponse.data.id,
+          nomeCompleto: produtorResponse.data.nomeCompleto,
+          cpfCnpj: produtorResponse.data.cpfCnpj,
+          email: produtorResponse.data.email,
+          telefone: produtorResponse.data.telefone,
+          dataCadastro: produtorResponse.data.dataCadastro || new Date().toISOString(),
+        };
+
+        console.log('✅ Produtor criado com ID:', newProdutor.id);
+
+        // 2. Criar propriedade
+        const propriedadePayload = {
+          idProdutor: newProdutor.id,
+          idNivelDegradacao: propriedadeData.id_nivel_degradacao,
+          nomePropriedade: propriedadeData.nome_propriedade,
+          latitude: propriedadeData.latitude,
+          longitude: propriedadeData.longitude,
+          areaHectares: propriedadeData.area_hectares
+        };
+
+        const propriedadeResponse = await api.post('/propriedades', propriedadePayload);
+        
+        if (propriedadeResponse.data) {
+          const newPropriedade: PropriedadeRural = {
+            id: propriedadeResponse.data.id,
+            idProdutor: newProdutor.id,
+            idNivelDegradacao: propriedadeData.id_nivel_degradacao,
+            nomePropriedade: propriedadeData.nome_propriedade,
+            latitude: propriedadeData.latitude,
+            longitude: propriedadeData.longitude,
+            areaHectares: propriedadeData.area_hectares,
+            dataCadastro: propriedadeResponse.data.dataCadastro || new Date().toISOString(),
           };
 
-          // 1. Criar produtor usando endpoint correto
-          const produtorResponse = await api.post('/produtores', produtorPayload);
+          console.log('✅ Propriedade criada com ID:', newPropriedade.id);
+
+          // Salvar dados localmente
+          await Promise.all([
+            AsyncStorage.setItem('produtor', JSON.stringify(newProdutor)),
+            AsyncStorage.setItem('propriedade', JSON.stringify(newPropriedade))
+          ]);
           
-          if (produtorResponse.data && produtorResponse.data.id) {
-            const newProdutor: ProdutorRural = {
-              id: produtorResponse.data.id,
-              nomeCompleto: produtorResponse.data.nomeCompleto,
-              cpfCnpj: produtorResponse.data.cpfCnpj,
-              email: produtorResponse.data.email,
-              telefone: produtorResponse.data.telefone,
-              dataCadastro: produtorResponse.data.dataCadastro || new Date().toISOString(),
-            };
-
-            // 2. Criar propriedade usando endpoint correto
-            const propriedadePayload = {
-              idProdutor: newProdutor.id,
-              idNivelDegradacao: propriedadeData.id_nivel_degradacao,
-              nomePropriedade: propriedadeData.nome_propriedade,
-              latitude: propriedadeData.latitude,
-              longitude: propriedadeData.longitude,
-              areaHectares: propriedadeData.area_hectares
-            };
-
-            const propriedadeResponse = await api.post('/propriedades', propriedadePayload);
-            
-            if (propriedadeResponse.data) {
-              const newPropriedade: PropriedadeRural = {
-                id: propriedadeResponse.data.id,
-                idProdutor: newProdutor.id,
-                idNivelDegradacao: propriedadeData.id_nivel_degradacao,
-                nomePropriedade: propriedadeData.nome_propriedade,
-                latitude: propriedadeData.latitude,
-                longitude: propriedadeData.longitude,
-                areaHectares: propriedadeData.area_hectares,
-                dataCadastro: propriedadeResponse.data.dataCadastro || new Date().toISOString(),
-              };
-
-              // Salvar dados
-              await Promise.all([
-                AsyncStorage.setItem('produtor', JSON.stringify(newProdutor)),
-                AsyncStorage.setItem('propriedade', JSON.stringify(newPropriedade))
-              ]);
-              
-              setProdutor(newProdutor);
-              setPropriedade(newPropriedade);
-              
-              await loadMockSensorsData();
-              
-              console.log('✅ Cadastro via API concluído');
-              return true;
-            }
-          }
-        } catch (apiError: any) {
-          console.log('❌ Erro na API, cadastrando offline:', apiError.message);
-          // Continuar para cadastro offline
+          setProdutor(newProdutor);
+          setPropriedade(newPropriedade);
+          
+          // Inicializar dados básicos de sensores
+          await loadBasicSensorData();
+          
+          console.log('✅ Cadastro via API concluído com sucesso');
+          return true;
         }
       }
       
-      // Cadastro offline
-      console.log('💾 Cadastrando offline...');
-      const newId = Date.now();
-      
-      const newProdutor: ProdutorRural = {
-        id: newId,
-        nomeCompleto: produtorData.nome_completo,
-        cpfCnpj: produtorData.cpf_cnpj,
-        email: produtorData.email,
-        telefone: produtorData.telefone,
-        dataCadastro: new Date().toISOString(),
-      };
-
-      const newPropriedade: PropriedadeRural = {
-        id: newId,
-        idProdutor: newId,
-        idNivelDegradacao: propriedadeData.id_nivel_degradacao,
-        nomePropriedade: propriedadeData.nome_propriedade,
-        latitude: propriedadeData.latitude,
-        longitude: propriedadeData.longitude,
-        areaHectares: propriedadeData.area_hectares,
-        dataCadastro: new Date().toISOString(),
-      };
-
-      // Salvar conta offline
-      const offlineAccount = {
-        email: produtorData.email,
-        senha: produtorData.senha,
-        produtor: newProdutor,
-        propriedade: newPropriedade
-      };
-
-      const existingAccounts = await AsyncStorage.getItem('offlineAccounts');
-      const accounts = existingAccounts ? JSON.parse(existingAccounts) : [];
-      accounts.push(offlineAccount);
-      
-      await Promise.all([
-        AsyncStorage.setItem('offlineAccounts', JSON.stringify(accounts)),
-        AsyncStorage.setItem('produtor', JSON.stringify(newProdutor)),
-        AsyncStorage.setItem('propriedade', JSON.stringify(newPropriedade)),
-      ]);
-      
-      setProdutor(newProdutor);
-      setPropriedade(newPropriedade);
-      
-      await loadMockSensorsData();
-      
-      console.log('✅ Cadastro offline concluído');
-      return true;
-    } catch (error) {
-      console.error('❌ Erro no cadastro:', error);
+      console.log('❌ Falha no cadastro - dados inválidos');
+      return false;
+    } catch (error: any) {
+      console.error('❌ Erro no cadastro:', error.response?.data || error.message);
       return false;
     } finally {
       setLoading(false);
     }
   };
 
-  // ✅ FUNÇÃO PARA CARREGAR DADOS DO USUÁRIO DA API
+  // ✅ CARREGAR DADOS DO USUÁRIO DA API
   const loadUserData = async (produtorId: number) => {
     try {
       console.log('📊 Carregando dados do usuário ID:', produtorId);
       const api = createApiInstance();
       
-      // ✅ Buscar propriedades usando endpoint correto com filtro
+      // Buscar propriedades do produtor
       const propriedadesResponse = await api.get('/propriedades', {
         params: {
           page: 1,
           pageSize: 10,
-          produtorId: produtorId // Assumindo que a API suporta filtro por produtor
+          // Adicionar filtro por produtor se a API suportar
         }
       });
 
       if (propriedadesResponse.data?.items?.length > 0) {
-        const propriedadeAtual = propriedadesResponse.data.items[0];
-        
-        const propriedadeFormatada: PropriedadeRural = {
-          id: propriedadeAtual.id,
-          idProdutor: produtorId,
-          idNivelDegradacao: propriedadeAtual.idNivelDegradacao || 1,
-          nomePropriedade: propriedadeAtual.nomePropriedade,
-          latitude: propriedadeAtual.latitude,
-          longitude: propriedadeAtual.longitude,
-          areaHectares: propriedadeAtual.areaHectares,
-          dataCadastro: propriedadeAtual.dataCadastro,
-          nomeProdutor: propriedadeAtual.nomeProdutor,
-          emailProdutor: propriedadeAtual.emailProdutor,
-          nivelDegradacao: propriedadeAtual.nivelDegradacao,
-          nivelNumerico: propriedadeAtual.nivelNumerico,
-        };
-        
-        setPropriedade(propriedadeFormatada);
-        await AsyncStorage.setItem('propriedade', JSON.stringify(propriedadeFormatada));
-        console.log('✅ Propriedade carregada da API');
+        // Encontrar propriedade do produtor atual
+        const propriedadeDoProdutor = propriedadesResponse.data.items.find(
+          (prop: any) => prop.idProdutor === produtorId
+        ) || propriedadesResponse.data.items[0]; // Fallback para primeira propriedade
+
+        if (propriedadeDoProdutor) {
+          const propriedadeFormatada: PropriedadeRural = {
+            id: propriedadeDoProdutor.id,
+            idProdutor: produtorId,
+            idNivelDegradacao: propriedadeDoProdutor.idNivelDegradacao || 1,
+            nomePropriedade: propriedadeDoProdutor.nomePropriedade,
+            latitude: propriedadeDoProdutor.latitude,
+            longitude: propriedadeDoProdutor.longitude,
+            areaHectares: propriedadeDoProdutor.areaHectares,
+            dataCadastro: propriedadeDoProdutor.dataCadastro,
+            nomeProdutor: propriedadeDoProdutor.nomeProdutor,
+            emailProdutor: propriedadeDoProdutor.emailProdutor,
+            nivelDegradacao: propriedadeDoProdutor.nivelDegradacao,
+            nivelNumerico: propriedadeDoProdutor.nivelNumerico,
+          };
+          
+          setPropriedade(propriedadeFormatada);
+          await AsyncStorage.setItem('propriedade', JSON.stringify(propriedadeFormatada));
+          console.log('✅ Propriedade carregada da API');
+        }
       }
       
-      // Carregar dados mock de sensores
-      await loadMockSensorsData();
+      // Carregar dados básicos de sensores (quando houver endpoint na API)
+      await loadBasicSensorData();
       
     } catch (error) {
       console.error('❌ Erro ao carregar dados da API:', error);
-      console.log('🔄 Fallback para dados offline');
-      await loadOfflineData();
+      // Fallback para dados básicos
+      await loadBasicSensorData();
     }
   };
 
-  // Criar contas demo para teste offline
-  const createDemoAccounts = async () => {
+  // ✅ CARREGAR DADOS BÁSICOS DE SENSORES (PLACEHOLDER)
+  const loadBasicSensorData = async () => {
     try {
-      const demoAccounts = [
+      // Por enquanto, criar dados básicos até que a API tenha endpoints de sensores
+      const basicSensors: SensorIot[] = [
         {
-          email: 'joao.silva@waterwise.com',
-          senha: 'joao123',
-          produtor: {
-            id: 1,
-            nomeCompleto: 'João Silva Santos',
-            cpfCnpj: '123.456.789-00',
-            email: 'joao.silva@waterwise.com',
-            telefone: '(11) 99999-0001',
-            dataCadastro: new Date().toISOString(),
-          },
-          propriedade: {
-            id: 1,
-            idProdutor: 1,
-            idNivelDegradacao: 2,
-            nomePropriedade: 'Fazenda São João',
-            latitude: -23.5505,
-            longitude: -46.6333,
-            areaHectares: 150.75,
-            dataCadastro: new Date().toISOString(),
-            nivelDegradacao: 'Bom',
-            nivelNumerico: 2,
+          id: 1,
+          tipoSensor: 'Umidade do Solo',
+          modeloDispositivo: 'WaterWise-Sensor-001',
+          dataInstalacao: new Date().toISOString(),
+          ultimaLeitura: {
+            timestampLeitura: new Date().toISOString(),
+            umidadeSolo: 65,
+            temperaturaAr: 25,
           }
         },
         {
-          email: 'maria.oliveira@waterwise.com',
-          senha: 'maria123',
-          produtor: {
-            id: 2,
-            nomeCompleto: 'Maria Oliveira Costa',
-            cpfCnpj: '987.654.321-00',
-            email: 'maria.oliveira@waterwise.com',
-            telefone: '(11) 99999-0002',
-            dataCadastro: new Date().toISOString(),
-          },
-          propriedade: {
-            id: 2,
-            idProdutor: 2,
-            idNivelDegradacao: 1,
-            nomePropriedade: 'Sítio Esperança',
-            latitude: -23.5489,
-            longitude: -46.6388,
-            areaHectares: 85.30,
-            dataCadastro: new Date().toISOString(),
-            nivelDegradacao: 'Excelente',
-            nivelNumerico: 1,
-          }
-        },
-        {
-          email: 'carlos.pereira@waterwise.com',
-          senha: 'carlos123',
-          produtor: {
-            id: 3,
-            nomeCompleto: 'Carlos Eduardo Lima',
-            cpfCnpj: '456.789.123-00',
-            email: 'carlos.pereira@waterwise.com',
-            telefone: '(11) 99999-0003',
-            dataCadastro: new Date().toISOString(),
-          },
-          propriedade: {
-            id: 3,
-            idProdutor: 3,
-            idNivelDegradacao: 3,
-            nomePropriedade: 'Fazenda Verde Vida',
-            latitude: -23.5601,
-            longitude: -46.6528,
-            areaHectares: 320.50,
-            dataCadastro: new Date().toISOString(),
-            nivelDegradacao: 'Moderado',
-            nivelNumerico: 3,
+          id: 2,
+          tipoSensor: 'Temperatura',
+          modeloDispositivo: 'WaterWise-Temp-001',
+          dataInstalacao: new Date().toISOString(),
+          ultimaLeitura: {
+            timestampLeitura: new Date().toISOString(),
+            temperaturaAr: 23,
           }
         }
       ];
 
-      const existingAccounts = await AsyncStorage.getItem('offlineAccounts');
-      if (!existingAccounts) {
-        await AsyncStorage.setItem('offlineAccounts', JSON.stringify(demoAccounts));
-        console.log('✅ Contas demo criadas');
-      }
-    } catch (error) {
-      console.error('❌ Erro ao criar contas demo:', error);
-    }
-  };
+      const basicReadings: LeituraSensor[] = [
+        {
+          idLeitura: 1,
+          idSensor: 1,
+          timestampLeitura: new Date().toISOString(),
+          umidadeSolo: 65,
+          temperaturaAr: 25,
+          precipitacaoMm: 0,
+        }
+      ];
 
-  const loadOfflineData = async () => {
-    try {
-      const [sensoresData, leiturasData, alertasData] = await Promise.all([
-        AsyncStorage.getItem('sensores'),
-        AsyncStorage.getItem('leituras'),
-        AsyncStorage.getItem('alertas'),
-      ]);
-
-      if (sensoresData) setSensores(JSON.parse(sensoresData));
-      if (leiturasData) setLeituras(JSON.parse(leiturasData));
-      if (alertasData) setAlertas(JSON.parse(alertasData));
+      setSensores(basicSensors);
+      setLeituras(basicReadings);
       
-      if (!sensoresData || !leiturasData) {
-        await loadMockSensorsData();
-      }
+      await Promise.all([
+        AsyncStorage.setItem('sensores', JSON.stringify(basicSensors)),
+        AsyncStorage.setItem('leituras', JSON.stringify(basicReadings)),
+      ]);
+      
+      console.log('✅ Dados básicos de sensores carregados');
     } catch (error) {
-      console.error('❌ Erro ao carregar dados offline:', error);
+      console.error('❌ Erro ao carregar dados básicos:', error);
     }
   };
 
-  const loadMockSensorsData = async () => {
-    const mockSensores: SensorIot[] = [
-      {
-        id: 1,
-        tipoSensor: 'Umidade do Solo',
-        modeloDispositivo: 'DHT22-WaterWise',
-        dataInstalacao: new Date().toISOString(),
-        ultimaLeitura: {
-          timestampLeitura: new Date().toISOString(),
-          umidadeSolo: 45 + Math.random() * 30,
-          temperaturaAr: 18 + Math.random() * 15,
-          precipitacaoMm: Math.random() < 0.3 ? Math.random() * 10 : 0,
-        }
-      },
-      {
-        id: 2,
-        tipoSensor: 'Temperatura',
-        modeloDispositivo: 'Temp-Sensor-Pro',
-        dataInstalacao: new Date().toISOString(),
-        ultimaLeitura: {
-          timestampLeitura: new Date().toISOString(),
-          temperaturaAr: 20 + Math.random() * 15,
-        }
-      },
-      {
-        id: 3,
-        tipoSensor: 'Precipitação',
-        modeloDispositivo: 'Rain-Gauge-Smart',
-        dataInstalacao: new Date().toISOString(),
-        ultimaLeitura: {
-          timestampLeitura: new Date().toISOString(),
-          precipitacaoMm: Math.random() < 0.2 ? Math.random() * 15 : 0,
-        }
-      }
-    ];
-
-    const mockLeituras: LeituraSensor[] = [];
-    for (let i = 0; i < 24; i++) {
-      const timestamp = new Date(Date.now() - (i * 60 * 60 * 1000));
-      mockLeituras.push({
-        idLeitura: i + 1,
-        idSensor: 1,
-        timestampLeitura: timestamp.toISOString(),
-        umidadeSolo: 40 + Math.random() * 35,
-        temperaturaAr: 18 + Math.random() * 15,
-        precipitacaoMm: Math.random() < 0.25 ? Math.random() * 12 : 0,
-      });
-    }
-
-    setSensores(mockSensores);
-    setLeituras(mockLeituras);
-    
-    await Promise.all([
-      AsyncStorage.setItem('sensores', JSON.stringify(mockSensores)),
-      AsyncStorage.setItem('leituras', JSON.stringify(mockLeituras)),
-    ]);
-  };
-
+  // ✅ LOGOUT
   const logout = async (): Promise<void> => {
     try {
       console.log('👋 Fazendo logout...');
       setLoading(true);
       
+      // Limpar dados locais
       await AsyncStorage.multiRemove([
         'produtor', 
         'propriedade', 
@@ -645,6 +455,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         'alertas'
       ]);
       
+      // Resetar estado
       setProdutor(null);
       setPropriedade(null);
       setSensores([]);
@@ -659,26 +470,35 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
+  // ✅ ATUALIZAR DADOS DO PRODUTOR
   const updateProdutor = async (produtorData: Partial<ProdutorRural>): Promise<void> => {
     try {
       if (produtor && isOnline) {
         const api = createApiInstance();
-        const response = await api.put(`/produtores/${produtor.id}`, produtorData);
+        const response = await api.put(`/produtores/${produtor.id}`, {
+          ...produtorData,
+          id: produtor.id
+        });
+        
         if (response.data) {
           const updatedProdutor = { ...produtor, ...produtorData };
           await AsyncStorage.setItem('produtor', JSON.stringify(updatedProdutor));
           setProdutor(updatedProdutor);
+          console.log('✅ Produtor atualizado via API');
         }
       } else if (produtor) {
+        // Atualização offline
         const updatedProdutor = { ...produtor, ...produtorData };
         await AsyncStorage.setItem('produtor', JSON.stringify(updatedProdutor));
         setProdutor(updatedProdutor);
+        console.log('✅ Produtor atualizado offline');
       }
     } catch (error) {
       console.error('❌ Erro ao atualizar produtor:', error);
     }
   };
 
+  // ✅ MÉTRICAS DO DASHBOARD
   const getDashboardMetrics = async (): Promise<any> => {
     try {
       if (!propriedade) return null;
@@ -686,6 +506,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       const area = propriedade.areaHectares;
       const nivelDegradacao = propriedade.nivelNumerico || 1;
       
+      // Cálculos baseados na área e nível de degradação
       const baseWaterUsage = area * 45;
       const degradationMultiplier = 1 + (nivelDegradacao - 1) * 0.2;
       
@@ -709,10 +530,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
+  // ✅ ALERTAS RECENTES
   const getRecentAlerts = async (): Promise<Alerta[]> => {
     try {
       if (isOnline && produtor) {
         // TODO: Implementar quando houver endpoint de alertas na API
+        // const api = createApiInstance();
+        // const response = await api.get(`/alertas/produtor/${produtor.id}`);
+        // return response.data || [];
       }
       return alertas;
     } catch (error) {
@@ -721,10 +546,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
+  // ✅ LEITURAS DOS SENSORES
   const getSensorReadings = async (): Promise<LeituraSensor[]> => {
     try {
       if (isOnline && propriedade) {
         // TODO: Implementar quando houver endpoint de leituras na API
+        // const api = createApiInstance();
+        // const response = await api.get(`/sensores/propriedade/${propriedade.id}/leituras`);
+        // return response.data || [];
       }
       return leituras;
     } catch (error) {
@@ -733,6 +562,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
+  // ✅ SINCRONIZAÇÃO DE DADOS
   const syncData = async (): Promise<void> => {
     try {
       if (!isOnline) {
@@ -741,19 +571,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       }
       
       console.log('🔄 Sincronizando dados...');
-      
-      const pendingSync = await AsyncStorage.getItem('pendingSync');
-      if (pendingSync) {
-        const pendingItems = JSON.parse(pendingSync);
-        
-        for (const item of pendingItems) {
-          if (item.type === 'register') {
-            await register(item.data.produtorData, item.data.propriedadeData);
-          }
-        }
-        
-        await AsyncStorage.removeItem('pendingSync');
-      }
       
       if (produtor) {
         await loadUserData(produtor.id);

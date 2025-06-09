@@ -66,6 +66,15 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
   const handleLogin = async () => {
     if (!validateForm()) return;
 
+    if (!isOnline) {
+      Alert.alert(
+        'Sem Conexão',
+        'É necessário estar conectado à internet para fazer login. Verifique sua conexão e tente novamente.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+
     setIsLoading(true);
     
     try {
@@ -76,19 +85,16 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
         console.log('✅ Login realizado com sucesso, navegando para Dashboard');
         navigation.replace('Dashboard');
       } else {
-        const message = isOnline 
-          ? 'Email ou senha incorretos. Verifique suas credenciais e tente novamente.' 
-          : 'Credenciais não encontradas offline. Conecte-se à internet para fazer login ou verifique se você já fez login anteriormente neste dispositivo.';
-        
-        Alert.alert('Erro no Login', message);
+        Alert.alert(
+          'Erro no Login', 
+          'Email ou senha incorretos. Verifique suas credenciais e tente novamente.\n\nSe você não tem uma conta, clique em "Cadastre-se" para criar uma nova.'
+        );
       }
     } catch (error) {
       console.error('❌ Login error:', error);
       Alert.alert(
         'Erro de Conexão', 
-        isOnline 
-          ? 'Falha na conexão com o servidor. Verifique sua internet e tente novamente.' 
-          : 'Não foi possível fazer login offline. Conecte-se à internet ou verifique suas credenciais salvas.'
+        'Falha na conexão com o servidor. Verifique sua internet e tente novamente.'
       );
     } finally {
       setIsLoading(false);
@@ -103,9 +109,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
   const handleForgotPassword = () => {
     Alert.alert(
       'Recuperar Senha',
-      isOnline 
-        ? 'Entre em contato com o suporte através do email: suporte@waterwise.com para recuperar sua senha.'
-        : 'Recuperação de senha não disponível offline. Conecte-se à internet e tente novamente.',
+      'Entre em contato com o suporte através do email: suporte@waterwise.com para recuperar sua senha.',
       [{ text: 'OK' }]
     );
   };
@@ -131,10 +135,10 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
           <View style={styles.statusIndicator}>
             <View style={[
               styles.statusDot, 
-              { backgroundColor: isOnline ? '#4CAF50' : '#FF9800' }
+              { backgroundColor: isOnline ? '#4CAF50' : '#F44336' }
             ]} />
             <Text style={styles.statusText}>
-              {isOnline ? 'Online' : 'Offline'}
+              {isOnline ? 'Conectado' : 'Sem conexão'}
             </Text>
           </View>
         </View>
@@ -158,7 +162,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
 
             {/* Login Form */}
             <View style={styles.formContainer}>
-              <Text style={styles.welcomeText}>Bem-vindo de volta!</Text>
+              <Text style={styles.welcomeText}>Faça seu login</Text>
               
               {/* Email Input */}
               <View style={styles.inputContainer}>
@@ -172,7 +176,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
                   keyboardType="email-address"
                   autoCapitalize="none"
                   autoComplete="email"
-                  editable={!isLoading}
+                  editable={!isLoading && isOnline}
                 />
               </View>
 
@@ -187,7 +191,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
                   onChangeText={setPassword}
                   secureTextEntry={!showPassword}
                   autoComplete="password"
-                  editable={!isLoading}
+                  editable={!isLoading && isOnline}
                 />
                 <TouchableOpacity
                   onPress={() => setShowPassword(!showPassword)}
@@ -202,12 +206,12 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
                 </TouchableOpacity>
               </View>
 
-              {/* Offline Notice */}
+              {/* Connection Notice */}
               {!isOnline && (
                 <View style={styles.offlineNotice}>
-                  <Ionicons name="information-circle-outline" size={16} color="#FF9800" />
+                  <Ionicons name="wifi-off" size={16} color="#F44336" />
                   <Text style={styles.offlineNoticeText}>
-                    Modo offline ativo. Apenas contas salvas anteriormente podem fazer login.
+                    Sem conexão com a internet. Login não disponível.
                   </Text>
                 </View>
               )}
@@ -215,17 +219,26 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
               {/* Login Button */}
               <TouchableOpacity
                 onPress={handleLogin}
-                style={[styles.loginButton, isLoading && styles.disabledButton]}
-                disabled={isLoading}
+                style={[
+                  styles.loginButton, 
+                  (isLoading || !isOnline) && styles.disabledButton
+                ]}
+                disabled={isLoading || !isOnline}
               >
                 <LinearGradient
-                  colors={['#00FFCC', '#00D4AA']}
+                  colors={
+                    !isOnline 
+                      ? ['#666666', '#555555'] 
+                      : ['#00FFCC', '#00D4AA']
+                  }
                   style={styles.loginButtonGradient}
                 >
                   {isLoading ? (
                     <ActivityIndicator color="#1A1A1A" size="small" />
                   ) : (
-                    <Text style={styles.loginButtonText}>Entrar</Text>
+                    <Text style={styles.loginButtonText}>
+                      {!isOnline ? 'Sem conexão' : 'Entrar'}
+                    </Text>
                   )}
                 </LinearGradient>
               </TouchableOpacity>
@@ -243,8 +256,16 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
             {/* Register Section */}
             <View style={styles.registerSection}>
               <Text style={styles.registerText}>Não tem uma conta?</Text>
-              <TouchableOpacity onPress={handleRegister} disabled={isLoading}>
-                <Text style={styles.registerLink}>Cadastre-se</Text>
+              <TouchableOpacity 
+                onPress={handleRegister} 
+                disabled={isLoading || !isOnline}
+              >
+                <Text style={[
+                  styles.registerLink,
+                  !isOnline && styles.disabledText
+                ]}>
+                  Cadastre-se
+                </Text>
               </TouchableOpacity>
             </View>
 
@@ -253,6 +274,16 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
               <View style={styles.apiInfo}>
                 <Text style={styles.apiInfoText}>
                   Conectado ao servidor WaterWise
+                </Text>
+              </View>
+            )}
+
+            {/* Offline Info */}
+            {!isOnline && (
+              <View style={styles.offlineInfo}>
+                <Ionicons name="information-circle-outline" size={16} color="#FF9800" />
+                <Text style={styles.offlineInfoText}>
+                  Verifique sua conexão com a internet para acessar o WaterWise
                 </Text>
               </View>
             )}
@@ -372,15 +403,15 @@ const styles = StyleSheet.create({
   offlineNotice: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255, 152, 0, 0.1)',
+    backgroundColor: 'rgba(244, 67, 54, 0.1)',
     borderRadius: 8,
     padding: 12,
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: 'rgba(255, 152, 0, 0.3)',
+    borderColor: 'rgba(244, 67, 54, 0.3)',
   },
   offlineNoticeText: {
-    color: '#FF9800',
+    color: '#F44336',
     fontSize: 12,
     marginLeft: 8,
     flex: 1,
@@ -402,6 +433,9 @@ const styles = StyleSheet.create({
   },
   disabledButton: {
     opacity: 0.6,
+  },
+  disabledText: {
+    opacity: 0.5,
   },
   forgotPasswordButton: {
     alignItems: 'center',
@@ -435,6 +469,20 @@ const styles = StyleSheet.create({
     color: '#4CAF50',
     fontSize: 12,
     fontWeight: '400',
+  },
+  offlineInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 20,
+    paddingHorizontal: 20,
+  },
+  offlineInfoText: {
+    color: '#FF9800',
+    fontSize: 12,
+    marginLeft: 8,
+    textAlign: 'center',
+    flex: 1,
   },
 });
 
